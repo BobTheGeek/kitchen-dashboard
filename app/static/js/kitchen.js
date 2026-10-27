@@ -195,7 +195,8 @@ export const isNight = (d) => { const h = chicagoParts(d).hour; return h >= 22 |
 
 function renderNight(now) {
   const st = status();
-  const tomorrow = state.week?.days[1]?.events[0];
+  // After midnight the day being woken into is days[0]; the label stays "TOMORROW".
+  const tomorrow = state.week?.days[chicagoParts(now).hour < 6 ? 0 : 1]?.events[0];
   const open = (state.today?.people ?? []).filter((p) => p.left > 0);
   nightEl.innerHTML =
     `<div class="top"><div>NIGHT · UNTIL 6:00 AM</div><div class="st ${st.tone === "amber" ? "amber" : ""}">` +
