@@ -45,9 +45,6 @@ class ColorIn(BaseModel):
     color: Color
 
 
-class PersonIn(BaseModel):
-    name: Name
-
 
 class PersonPatch(BaseModel):
     name: Name | None = None
@@ -149,25 +146,13 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     def put_color(name: str, body: ColorIn, con: Con):
         return settings.set_color(con, name, body.color)
 
-    @app.post("/api/settings/people", status_code=201)
-    def post_person(body: PersonIn, con: Con):
-        return settings.add_person(con, body.name)
-
+    # The family is fixed at three people (seeded on first run); they can be renamed, not added or removed.
     @app.patch("/api/settings/people/{person_id}")
     def patch_person(person_id: int, body: PersonPatch, con: Con):
         try:
             return settings.update_person(con, person_id, name=body.name, sort=body.sort)
         except KeyError:
             raise HTTPException(404, "No such person") from None
-
-    @app.delete("/api/settings/people/{person_id}", status_code=204)
-    def delete_person(person_id: int, con: Con):
-        try:
-            settings.delete_person(con, person_id)
-        except KeyError:
-            raise HTTPException(404, "No such person") from None
-        except ValueError:
-            raise HTTPException(409, "Move or delete this person's TODOs first") from None
 
     @app.delete("/api/events/{uid}")
     def delete_event(uid: str):

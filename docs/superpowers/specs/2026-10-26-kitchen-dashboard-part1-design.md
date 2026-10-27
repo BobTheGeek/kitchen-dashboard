@@ -161,7 +161,7 @@ From `docs/design/README.md`; match its sizes, spacing, colors and copy.
 
 **Kitchen:** 2a dashboard (with an inert Talk button), 8c busy day, 8d day sheet, 3a event detail (the "Change by voice" button is hidden until Part 2), 3c delete confirm, 8a overdue, 8b empty states, 8f loading, 6a night mode. Person photo slots show the person's initial.
 
-**Phone:** 4a home (Talk button inert), 4b add TODO, 4c settings (calendar colors with presets and custom color input; family add/rename/remove; the greyed "Later" block), 8h event detail (read-only rows; Delete only for House events), 8i TODO edit.
+**Phone:** 4a home (Talk button inert), 4b add TODO, 4c settings (calendar colors with presets and custom color input; family rename only (the family is fixed at Bob, Belen, Ben; changed 2026-10-27); the greyed "Later" block), 8h event detail (read-only rows; Delete only for House events), 8i TODO edit.
 
 **Not in Part 1:** 2b, 5a–5d, 8e, 8g, 4d (Part 2); 7a, 7c and photo upload (Part 3).
 
@@ -182,7 +182,7 @@ From `docs/design/README.md`; match its sizes, spacing, colors and copy.
   - carry-over, overdue (past date and past time), done-today from an old date, future items hidden, ordering, counts, all-done and empty states;
   - Chicago day bucketing, including an evening event whose UTC date is the next day, and across a DST change;
   - Next up selection, `+N more`, relative labels, chip ink color for light and dark colors;
-  - settings: preset assignment, color change, person add/rename/remove, refusal when a person has TODOs;
+  - settings: preset assignment, color change, person rename (add/remove removed 2026-10-27);
   - change counter bumps on every write and not on reads;
   - delete pass-through: success, and calendar-api refusal returned with its message;
   - stale cache served when calendar-api fails, including after a restart.

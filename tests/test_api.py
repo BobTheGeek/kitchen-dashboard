@@ -85,17 +85,16 @@ def test_settings(client):
     r = client.put("/api/settings/calendars/Family", json={"color": "#2B5FD9"})
     assert r.json() == {"name": "Family", "color": "#2b5fd9", "ink": "#fff"}
     assert client.put("/api/settings/calendars/Family", json={"color": "blue"}).status_code == 422
-    ana = client.post("/api/settings/people", json={"name": "Ana"}).json()
-    assert client.patch(f"/api/settings/people/{ana['id']}", json={"name": "Anna"}).json()["name"] == "Anna"
-    assert client.delete(f"/api/settings/people/{ana['id']}").status_code == 204
-    assert client.delete("/api/settings/people/999").status_code == 404
-
-
-def test_cannot_remove_person_with_todos(client):
     ben = people(client)["Ben"]
-    client.post("/api/todos", json={"person_id": ben, "text": "x", "date": "2026-10-26"})
-    r = client.delete(f"/api/settings/people/{ben}")
-    assert r.status_code == 409 and "TODO" in r.json()["detail"]
+    assert client.patch(f"/api/settings/people/{ben}", json={"name": "Benny"}).json()["name"] == "Benny"
+    assert client.patch("/api/settings/people/999", json={"name": "x"}).status_code == 404
+
+
+def test_family_is_fixed_at_three(client):
+    """The family is always Bob, Belen and Ben: people can be renamed, never added or removed."""
+    assert client.post("/api/settings/people", json={"name": "Ana"}).status_code in (404, 405)
+    assert client.delete(f"/api/settings/people/{people(client)['Ben']}").status_code in (404, 405)
+    assert list(people(client)) == ["Bob", "Belen", "Ben"]
 
 
 def test_delete_event_passthrough(client, src):

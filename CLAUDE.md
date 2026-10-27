@@ -29,6 +29,7 @@ Rule one: **family data stays in the house.**
 - Logs on home-ai: `~/household-ai/logs/kitchen-deploy.log`, `docker logs kitchen-dashboard`.
 
 ## Rules
+- The family is fixed at three: Bob, Belen, Ben (Bob's decision, 2026-10-27). People can be renamed, never added or removed; the wall always shows exactly three TODO cards.
 - No external network calls, CDNs, web fonts or analytics. System fonts only.
 - All dates/times America/Chicago, computed on the server. Never slice calendar ISO strings for dates.
 - Kitchen: touch only, ≥ 100px targets, nothing below 30px; never use browser zoom to fix sizing.

@@ -37,20 +37,9 @@ def test_no_bump_when_nothing_new(con):
     assert st.changes(con) == n
 
 
-def test_people_crud(con):
-    ana = settings.add_person(con, "Ana")
-    assert ana["sort"] == 3 and [p["name"] for p in settings.people(con)][-1] == "Ana"
-    assert settings.update_person(con, ana["id"], name="Anna")["name"] == "Anna"
-    settings.delete_person(con, ana["id"])
-    assert "Anna" not in [p["name"] for p in settings.people(con)]
-    with pytest.raises(KeyError):
-        settings.delete_person(con, 999)
-
-
-def test_cannot_delete_person_with_todos(con):
+def test_rename_person(con):
     ben = next(p for p in settings.people(con) if p["name"] == "Ben")
-    with con:
-        con.execute("insert into todos (person_id, text, date, created_at) values (?, 'x', '2026-10-26', 'n')",
-                    (ben["id"],))
-    with pytest.raises(ValueError):
-        settings.delete_person(con, ben["id"])
+    assert settings.update_person(con, ben["id"], name="Benny")["name"] == "Benny"
+    assert [p["name"] for p in settings.people(con)] == ["Bob", "Belen", "Benny"]
+    with pytest.raises(KeyError):
+        settings.update_person(con, 999, name="x")

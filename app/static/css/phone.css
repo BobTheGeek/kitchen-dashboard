@@ -137,11 +137,8 @@ body.is-phone { background: var(--bg); }
 .p-fam { display: flex; align-items: center; gap: 14px; min-height: 64px; }
 .p-fam + .p-fam { border-top: 1px solid var(--divider); }
 .p-fam .ph { width: 40px; height: 40px; border-radius: 50%; background: var(--photo); background-size: 8px 8px; flex: none; }
-.p-fam .ph.add { background: none; border: 2px dashed var(--ring); display: flex; align-items: center; justify-content: center;
-  font: 300 24px/1 var(--sans); color: var(--faint); }
 .p-fam .nm { font: 17px var(--sans); flex: 1; }
 .p-fam .edit { font: 600 14px var(--sans); color: var(--muted); min-height: 48px; min-width: 48px; padding: 0 4px; }
-.p-fam.add-row { color: var(--accent); font: 600 17px var(--sans); width: 100%; text-align: left; }
 .p-fam input { flex: 1; font: 17px var(--sans); border: 2px solid var(--accent); border-radius: 12px; padding: 10px;
   min-width: 0; }
 .p-later { opacity: .5; }

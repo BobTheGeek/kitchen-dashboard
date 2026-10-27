@@ -98,7 +98,7 @@ function renderPeople(loading, people, skHtml) {
   const box = slots.people;
   if (loading) {
     personEls.clear();
-    setHtml(box, `${skHtml}<div class="slot">+</div>`);
+    setHtml(box, skHtml);
     return;
   }
   if (box._html !== undefined) { box._html = undefined; box.innerHTML = ""; }  // leaving the skeleton
@@ -121,9 +121,6 @@ function renderPeople(loading, people, skHtml) {
     prev = rec.el;
   }
   for (const [id, rec] of personEls) if (!keep.has(id)) { rec.el.remove(); personEls.delete(id); }
-  let plus = box.querySelector(":scope > .slot");
-  if (!plus) { plus = document.createElement("div"); plus.className = "slot"; plus.textContent = "+"; }
-  if (box.lastElementChild !== plus) box.append(plus);
 }
 
 function updateStatus() {

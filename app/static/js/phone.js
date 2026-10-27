@@ -179,13 +179,9 @@ function renderSettings() {
       `<span class="hint">text auto-flips</span></div></div>` : "")).join("");
   const famRows = people.map((p) => s.editing === p.id
     ? `<form class="p-fam" data-person-form="${p.id}"><span class="ph"></span><input name="pname" maxlength="40" value="${esc(p.name)}" required>` +
-      `<button class="edit" style="color:var(--accent)">Save</button><button type="button" class="edit" style="color:var(--danger)" data-remove-person="${p.id}">Remove</button></form>`
+      `<button class="edit" style="color:var(--accent)">Save</button></form>`
     : `<div class="p-fam"><span class="ph"></span><span class="nm">${esc(p.name)}</span>` +
-      `<button class="edit" data-edit-person="${p.id}">Edit</button></div>`).join("") +
-    (s.editing === "new"
-      ? `<form class="p-fam" data-person-form="new"><span class="ph add">+</span><input name="pname" maxlength="40" placeholder="Name" required autofocus>` +
-        `<button class="edit" style="color:var(--accent)">Add</button></form>`
-      : `<button class="p-fam add-row" data-edit-person="new"><span class="ph add">+</span>Add a person</button>`);
+      `<button class="edit" data-edit-person="${p.id}">Edit</button></div>`).join("");
   return `<div class="phone"><div class="p-title-row"><div class="p-title">Settings</div>` +
     `<button class="p-link" style="color:var(--accent)" data-go="home">Done</button></div>` +
     `<div class="p-sec"><div class="p-label">CALENDARS</div><div class="p-card">${calRows || `<div class="p-empty">No calendars yet</div>`}</div></div>` +
@@ -265,15 +261,7 @@ async function onClick(e) {
   if (d.addAnytime !== undefined) { syncAdd(); view.add.time = ""; render(); return; }
   if (d.cal) { view.settings.open = view.settings.open === d.cal ? null : d.cal; render(); return; }
   if (d.color) { await setColor(view.settings.open, d.color); return; }
-  if (d.editPerson) { view.settings.editing = d.editPerson === "new" ? "new" : Number(d.editPerson); view.settings.error = ""; render(); return; }
-  if (d.removePerson) {
-    const res = await act(() => request("DELETE", `/api/settings/people/${d.removePerson}`));
-    view.settings.error = res === true ? "" : errorText(res);
-    if (res === true) view.settings.editing = null;
-    await Promise.all([loadSettings(), loadToday()]).catch(() => {});
-    render();
-    return;
-  }
+  if (d.editPerson) { view.settings.editing = Number(d.editPerson); view.settings.error = ""; render(); return; }
   if (d.pickDate !== undefined) {
     const i = document.querySelector("input[name=pickdate]");
     if (i.showPicker) { try { i.showPicker(); return; } catch { /* fall through */ } }
@@ -343,8 +331,7 @@ async function onSubmit(e) {
     e.preventDefault();
     const id = e.target.dataset.personForm;
     const name = e.target.pname.value;
-    const res = await act(() => id === "new" ? request("POST", "/api/settings/people", { name })
-      : request("PATCH", `/api/settings/people/${id}`, { name }));
+    const res = await act(() => request("PATCH", `/api/settings/people/${id}`, { name }));
     if (res !== true) { famFail(res); return; }  // keep the form so the typed name survives
     view.settings.error = "";
     view.settings.editing = null;

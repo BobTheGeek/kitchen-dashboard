@@ -1,4 +1,4 @@
-"""Calendar colors and the family list, both edited from the phone."""
+"""Calendar colors and the family list (fixed at three people; names can be changed from the phone)."""
 import sqlite3
 
 from app import labels
@@ -45,14 +45,6 @@ def _person(con: sqlite3.Connection, person_id: int) -> dict:
     return dict(row)
 
 
-def add_person(con: sqlite3.Connection, name: str) -> dict:
-    with con:
-        sort = con.execute("select coalesce(max(sort), -1) + 1 from people").fetchone()[0]
-        cur = con.execute("insert into people (name, sort) values (?, ?)", (name, sort))
-        st.bump(con)
-    return _person(con, cur.lastrowid)
-
-
 def update_person(con: sqlite3.Connection, person_id: int, *, name: str | None = None,
                   sort: int | None = None) -> dict:
     _person(con, person_id)
@@ -65,10 +57,3 @@ def update_person(con: sqlite3.Connection, person_id: int, *, name: str | None =
     return _person(con, person_id)
 
 
-def delete_person(con: sqlite3.Connection, person_id: int) -> None:
-    _person(con, person_id)
-    if con.execute("select 1 from todos where person_id = ? limit 1", (person_id,)).fetchone():
-        raise ValueError("has todos")
-    with con:
-        con.execute("delete from people where id = ?", (person_id,))
-        st.bump(con)
