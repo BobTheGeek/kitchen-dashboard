@@ -7,38 +7,77 @@ export const micAvailable = () => window.isSecureContext && !!navigator.mediaDev
 export class Recorder {
   constructor({ onLevel, onSilence, silenceMs = 1500, maxMs = 15000 } = {}) {
     Object.assign(this, { onLevel, onSilence, silenceMs, maxMs });
+    this.stream = null;
+    this.ctx = null;
+    this.node = null;
+    this.chunks = [];
+    this.heard = false;
+    this.fired = false;
+    this.pending = false;
+    this.cancelled = false;
+    this.stopping = null;
   }
 
   async start() {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-    });
-    this.ctx = new AudioContext();
-    const src = this.ctx.createMediaStreamSource(this.stream);
-    this.node = this.ctx.createScriptProcessor(4096, 1, 1);
-    this.chunks = [];
-    this.heard = false;
-    this.started = this.quietSince = performance.now();
-    this.node.onaudioprocess = (e) => {
-      const data = new Float32Array(e.inputBuffer.getChannelData(0));
-      this.chunks.push(data);
-      let sum = 0;
-      for (const v of data) sum += v * v;
-      const rms = Math.sqrt(sum / data.length);
-      this.onLevel?.(Math.min(1, rms * 8));
-      const now = performance.now();
-      if (rms > 0.02) { this.heard = true; this.quietSince = now; }
-      if ((this.heard && now - this.quietSince > this.silenceMs) || now - this.started > this.maxMs) this.onSilence?.();
-    };
-    src.connect(this.node);
-    this.node.connect(this.ctx.destination);
+    if (this.stream || this.pending) throw new Error("Recorder already started");
+    this.pending = true;
+    this.cancelled = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+      if (this.cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      this.stream = stream;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      this.ctx = ctx;
+      // iOS Safari can start the context suspended. resume() can also stay pending with no user gesture,
+      // so wait at most 500 ms rather than hanging start() indefinitely.
+      await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 500))]).catch(() => {});
+      if (this.cancelled) return;  // cancel() already released the mic and closed the context
+      const src = ctx.createMediaStreamSource(stream);
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      this.node = node;
+      this.chunks = [];
+      this.heard = false;
+      this.fired = false;
+      this.started = this.quietSince = performance.now();
+      node.onaudioprocess = (e) => {
+        const data = new Float32Array(e.inputBuffer.getChannelData(0));
+        this.chunks.push(data);
+        let sum = 0;
+        for (const v of data) sum += v * v;
+        const rms = Math.sqrt(sum / data.length);
+        this.onLevel?.(Math.min(1, rms * 8));
+        const now = performance.now();
+        if (rms > 0.02) { this.heard = true; this.quietSince = now; }
+        if (!this.fired && ((this.heard && now - this.quietSince > this.silenceMs) || now - this.started > this.maxMs)) {
+          this.fired = true;
+          this.onSilence?.();
+        }
+      };
+      src.connect(node);
+      node.connect(ctx.destination);
+    } catch (e) {
+      this.release();
+      throw e;
+    } finally {
+      this.pending = false;
+    }
   }
 
-  async stop() {
-    this.node.disconnect();
-    this.stream.getTracks().forEach((t) => t.stop());
-    const rate = this.ctx.sampleRate;
-    await this.ctx.close();
+  // Idempotent: repeat calls get the same promise, so the WAV is built once.
+  stop() {
+    if (!this.stopping) this.stopping = this.finish();
+    return this.stopping;
+  }
+
+  async finish() {
+    const rate = this.ctx?.sampleRate ?? 16000;
+    await this.release();
     const n = this.chunks.reduce((a, c) => a + c.length, 0);
     const all = new Float32Array(n);
     let o = 0;
@@ -47,7 +86,17 @@ export class Recorder {
   }
 
   cancel() {
-    try { this.node?.disconnect(); this.stream?.getTracks().forEach((t) => t.stop()); this.ctx?.close(); } catch { /* already closed */ }
+    this.cancelled = true;
+    this.release();
+  }
+
+  // Stops the mic, detaches the processor and closes the context. Safe to call repeatedly.
+  release() {
+    const { stream, node, ctx } = this;
+    this.stream = this.node = this.ctx = null;
+    stream?.getTracks().forEach((t) => t.stop());
+    try { node?.disconnect(); } catch { /* already disconnected */ }
+    return ctx?.close()?.catch(() => {}) ?? Promise.resolve();
   }
 }
 
@@ -86,6 +135,6 @@ export const talkApi = {
       e.data = data;
       throw e;
     }
-    return data.text;
+    return data?.text ?? "";
   },
 };
