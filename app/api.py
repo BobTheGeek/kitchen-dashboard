@@ -1,19 +1,21 @@
 """HTTP routes. Thin: validation and status codes here, rules in todos/settings/calendar."""
 import datetime as dt
+import hmac
 import logging
 import os
 from contextlib import closing
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 
-from app import clock, settings, todos
+from app import actions, clock, settings, todos
 from app import store as st
 from app.calendar import CalendarService, FixtureSource, HttpSource, build_week
+from app.house import HouseOps
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "app" / "static"
@@ -51,6 +53,48 @@ class PersonPatch(BaseModel):
     sort: int | None = Field(None, ge=0)
 
 
+Place = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+
+
+class HouseEventIn(BaseModel):
+    title: Text
+    date: dt.date
+    start_time: HHMM | None = None
+    end_time: HHMM | None = None
+    duration_minutes: int | None = Field(None, ge=5, le=1440)
+    calendar: Name | None = None
+    location: Place | None = None
+
+
+class HouseEventPatch(BaseModel):
+    title: Text | None = None
+    date: dt.date | None = None
+    start_time: HHMM | None = None
+    end_time: HHMM | None = None
+    location: Place | None = None
+
+
+class HouseTodoIn(BaseModel):
+    person: Name
+    text: Text
+    date: dt.date | None = None
+    time: HHMM | None = None
+
+
+def _fields(model: BaseModel) -> dict:
+    out = model.model_dump(exclude_none=True)
+    if "date" in out:
+        out["date"] = out["date"].isoformat()
+    return out
+
+
+def _read_secret(env_name: str) -> str:
+    path = os.environ.get(env_name)
+    if path and Path(path).is_file():
+        return Path(path).read_text().strip()
+    return ""
+
+
 class QuietPolls(logging.Filter):
     """Keep the 10-second polls out of the access log."""
 
@@ -61,7 +105,8 @@ class QuietPolls(logging.Filter):
         return True
 
 
-def create_app(db_path: str | None = None, source=None, version: str | None = None) -> FastAPI:
+def create_app(db_path: str | None = None, source=None, version: str | None = None, whisper=None, house=None,
+               house_token: str | None = None) -> FastAPI:
     db_path = db_path or os.environ.get("DASHBOARD_DB", "/data/dashboard.db")
     version = version or os.environ.get("APP_VERSION", "dev")
     if source is None:
@@ -71,6 +116,8 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
             source = HttpSource(os.environ.get("CALENDAR_API", "http://calendar-api:8000"))
     store = st.Store(db_path)
     cal = CalendarService(source, store)
+    ops = HouseOps(cal)
+    token = house_token if house_token is not None else _read_secret("HOUSE_TOKEN_FILE")
     logging.getLogger("uvicorn.access").addFilter(QuietPolls())
 
     app = FastAPI(title="Kitchen Dashboard", version=version)
@@ -160,6 +207,104 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
         if status == 204:
             return Response(status_code=204)
         return JSONResponse(body, status_code=status)
+
+    def house_auth(authorization: Annotated[str | None, Header()] = None):
+        if not token:
+            raise HTTPException(503, "House tools are not set up on the dashboard")
+        if not authorization or not hmac.compare_digest(authorization, f"Bearer {token}"):
+            raise HTTPException(401, "Bad house token")
+
+    House = Annotated[None, Depends(house_auth)]
+    Sid = Annotated[str | None, Header(alias="X-Talk-Session")]
+
+    def passthrough(status: int, body: dict):
+        return JSONResponse(body, status_code=status) if status != 204 else Response(status_code=204)
+
+    @app.get("/api/house/calendars")
+    def house_calendars(_: House):
+        if isinstance(cal.source, HttpSource):
+            return passthrough(*cal.source._send("GET", "/calendars"))
+        return {"default": "Family", "calendars": [
+            {"name": "Family", "purpose": "Our primary shared family calendar for most events", "writable": True},
+            {"name": "Benny Time", "purpose": "Events specific to our son, Ben", "writable": True}]}
+
+    @app.get("/api/house/events")
+    def house_events(_: House, start: dt.date | None = None, days: int = 7):
+        try:
+            evs = cal.source.events(start or clock.now().date(), max(1, min(days, 60)))
+        except Exception:
+            raise HTTPException(502, "Couldn't read the calendar") from None
+        return {"events": evs}
+
+    @app.post("/api/house/events")
+    def house_add_event(body: HouseEventIn, _: House, con: Con, sid: Sid = None):
+        return passthrough(*ops.add_event(con, clock.now(), sid, _fields(body)))
+
+    @app.patch("/api/house/events/{uid}")
+    def house_update_event(uid: str, body: HouseEventPatch, _: House, con: Con, sid: Sid = None):
+        return passthrough(*ops.update_event(con, clock.now(), sid, uid, _fields(body)))
+
+    @app.delete("/api/house/events/{uid}")
+    def house_delete_event(uid: str, _: House, con: Con, sid: Sid = None):
+        return passthrough(*ops.delete_event(con, clock.now(), sid, uid))
+
+    @app.get("/api/house/todos")
+    def house_list_todos(person: str, _: House, con: Con):
+        view = todos.today_view(con, clock.now())
+        p = next((p for p in view["people"] if p["name"].lower() == person.strip().lower()), None)
+        if p is None:
+            raise HTTPException(404, f"No one called {person}. The family is Bob, Belen and Ben.")
+        return {"person": p["name"], "date": view["date"], "todos": p["todos"]}
+
+    @app.post("/api/house/todos", status_code=201)
+    def house_add_todo(body: HouseTodoIn, _: House, con: Con, sid: Sid = None):
+        now = clock.now()
+        try:
+            return ops.add_todo(con, now, sid, person=body.person, text=body.text,
+                                date=(body.date or now.date()).isoformat(), time=body.time)
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from None
+
+    def _todo_op(fn, *args):
+        try:
+            return fn(*args)
+        except KeyError:
+            raise HTTPException(404, "No such TODO") from None
+
+    @app.post("/api/house/todos/{todo_id}/done")
+    def house_done(todo_id: int, _: House, con: Con, sid: Sid = None):
+        return _todo_op(ops.set_todo_done, con, clock.now(), sid, todo_id, True)
+
+    @app.post("/api/house/todos/{todo_id}/reopen")
+    def house_reopen(todo_id: int, _: House, con: Con, sid: Sid = None):
+        return _todo_op(ops.set_todo_done, con, clock.now(), sid, todo_id, False)
+
+    @app.delete("/api/house/todos/{todo_id}")
+    def house_delete_todo(todo_id: int, _: House, con: Con, sid: Sid = None):
+        return _todo_op(ops.delete_todo, con, clock.now(), sid, todo_id)
+
+    def change_cards(con, session_id: str, after_id: int = 0) -> list[dict]:
+        colors = {c["name"]: (c["color"], c["ink"]) for c in settings.calendars(con)}
+        out = []
+        for a in actions.for_session(con, session_id, after_id):
+            color, ink = colors.get(a["calendar"], ("#6b45d9", "#fff"))
+            out.append({"id": a["id"], "kind": a["kind"], "verb": a["verb"], "title": a["title"],
+                        "detail": a["detail"], "ref": a["ref"], "calendar": a["calendar"], "person": a["person"],
+                        "color": color, "ink": ink, "undone": a["undone_at"] is not None,
+                        "undoable": a["inverse"] is not None})
+        return out
+
+    @app.get("/api/talk/sessions/{session_id}")
+    def talk_session(session_id: str, con: Con):
+        return {"busy": False, "changes": change_cards(con, session_id)}
+
+    @app.post("/api/talk/actions/{action_id}/undo")
+    def talk_undo(action_id: int, con: Con):
+        ok, message = ops.undo(con, clock.now(), action_id)
+        if not ok:
+            raise HTTPException(409, message)
+        cal.invalidate()
+        return {"ok": True}
 
     @app.get("/")
     def index():
