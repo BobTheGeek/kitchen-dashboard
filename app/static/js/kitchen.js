@@ -1,5 +1,6 @@
 // Kitchen wall screen (design 2a and its states). Authored at 3000x2000; scaled to fit in dev windows.
 import { loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
+import { initTalkWall, openTalk, talkOpen } from "./talk-wall.js";
 import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
 
 let stage, dash, nightEl;
@@ -80,7 +81,7 @@ function buildShell() {
   dash.innerHTML =
     `<div class="rail"><div><div class="clock" id="clock"></div><div class="date" id="date"></div></div>` +
     `<div class="next"><div class="label">NEXT UP</div><div id="next-list" class="next-list"></div></div>` +
-    `<button class="talk" id="talk" aria-disabled="true"></button>` +
+    `<button class="talk" id="talk" data-talk></button>` +
     `<div class="status" id="status"></div></div>` +
     `<div class="right"><div class="week" id="week"></div><div class="people" id="people"></div></div>`;
   slots = { next: dash.querySelector("#next-list"), talk: dash.querySelector("#talk"), week: dash.querySelector("#week"),
@@ -133,7 +134,7 @@ function updateStatus() {
 function render() {
   const loading = !state.week || !state.today;
   const sk = loading ? skeleton() : null;
-  dash.className = `dash ${loading ? "loading" : ""} ${sheetEl && !sheetEl.hidden ? "dimmed" : ""}`;
+  dash.className = `dash ${loading ? "loading" : ""} ${(sheetEl && !sheetEl.hidden) || talkOpen() ? "dimmed" : ""}`;
   if (!slots) { buildShell(); tickClock(); }
   setHtml(slots.next, loading ? sk.next : nextCards(state.week.next));
   slots.talk.className = `talk ${loading ? "skel" : ""}`;
@@ -206,7 +207,8 @@ function eventSheet(ev, mode = "view", error = "") {
     (who.length ? `<div class="k">WHO</div><div>${who.map((p) => `<span class="who-pill"><span class="avatar">` +
       `${esc(p.initial)}</span>${esc(p.name)}</span>`).join(" ")}</div>` : "");
   const actions = ev.can_delete
-    ? `<button class="btn outline w460" data-delete="${esc(ev.uid)}">Delete</button>`
+    ? `<button class="btn soft flex" data-voice="${esc(ev.uid)}">${icons.mic(40, "currentColor")}Change by voice</button>` +
+      `<button class="btn outline w460" data-delete="${esc(ev.uid)}">Delete</button>`
     : `<div class="note">Change it in your Calendar app</div>`;
   return `<div class="sheet event">${band}<div class="facts">${facts}</div><div class="actions">${actions}</div></div>`;
 }
@@ -276,6 +278,7 @@ export function startKitchen(root) {
   dash = document.getElementById("dash");
   sheetEl = document.getElementById("sheet");
   nightEl = document.getElementById("night");
+  initTalkWall(stage, dash);
   fitStage();
   window.addEventListener("resize", fitStage);
   nightEl.addEventListener("click", (e) => {
@@ -284,9 +287,16 @@ export function startKitchen(root) {
     updateNight(new Date());
   });
   stage.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove]");
+    const t = e.target.closest("[data-talk],[data-voice],[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove]");
     if (!t) return;
     const d = t.dataset;
+    if (d.talk !== undefined) return openTalk({ night: isNight(new Date()) });
+    if (d.voice) {
+      const ev = findEvent(d.voice);
+      closeSheet();
+      return openTalk({ context: ev ? { event: { uid: ev.uid, title: ev.title, when_label: ev.when_label,
+                                                 calendar: ev.calendar } } : null });
+    }
     if (d.close !== undefined) closeSheet();
     else if (d.delete) showSheet(eventSheet(findEvent(d.delete), "confirm"));
     else if (d.keep) showSheet(eventSheet(findEvent(d.keep)));
