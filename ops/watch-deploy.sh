@@ -1,11 +1,13 @@
 #!/bin/sh
 # Pull-based deploy. launchd runs this every 2 minutes on home-ai; scripts/deploy.sh runs it over ssh for manual deploys.
 # New commit on origin/main -> test, start, health check. Any failure -> roll back and send an ntfy alert.
-# HEAD already at origin/main but the running version differs (interrupted deploy) -> redeploy HEAD.
+# A commit that failed is recorded in ~/.kitchen-deploy.failed and skipped quietly until a new commit lands.
+# HEAD already at origin/main but the running version differs (interrupted deploy) -> redeploy HEAD (no rollback).
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 cd "$HOME/kitchen-dashboard" || exit 1
 LOCK="$HOME/.kitchen-deploy.lock"
 FAILS="$HOME/.kitchen-deploy.fetchfails"
+BAD="$HOME/.kitchen-deploy.failed"
 log() { echo "$(date '+%F %T') $*"; }
 notify() {
   curl -fs --max-time 5 -H "Title: kitchen-dashboard" -H "Tags: warning" -d "$1" \
@@ -38,11 +40,20 @@ else
 fi
 
 PREV=$(git rev-parse HEAD)
-if [ "$PREV" != "$(git rev-parse origin/main)" ]; then
-  NEW=$(git rev-parse --short origin/main)
+TARGET=$(git rev-parse origin/main)
+# A commit that already failed stays failed: no redeploy, no repeat alert, until a new commit lands.
+if [ "$TARGET" = "$(cat "$BAD" 2>/dev/null)" ]; then
+  log "skipping known-bad $(git rev-parse --short "$TARGET")"
+  exit 0
+fi
+
+if [ "$PREV" != "$TARGET" ]; then
+  NEW=$(git rev-parse --short "$TARGET")
   log "deploying $NEW"
   if ! git merge -q --ff-only origin/main; then
-    notify "Can't fast-forward to $NEW (local changes or a force-push?). Not deployed."
+    echo "$TARGET" > "$BAD"
+    log "FAILED $NEW: can't fast-forward (local changes or a force-push?)"
+    notify "Can't fast-forward to $NEW (local changes or a force-push?). Not deployed; skipped until a new commit lands."
     exit 1
   fi
   CAN_ROLL_BACK=1
@@ -57,12 +68,14 @@ fi
 
 if sh ops/deploy-here.sh; then
   log "live $NEW"
+  rm -f "$BAD"
   exit 0
 fi
 
+echo "$TARGET" > "$BAD"
 if [ "$CAN_ROLL_BACK" -eq 0 ]; then
   log "FAILED redeploy of $NEW, no earlier commit to roll back to"
-  notify "Redeploy of $NEW failed (tests, build or health). Not rolled back: no earlier commit to return to. See ~/household-ai/logs/kitchen-deploy.log"
+  notify "Redeploy of $NEW failed (tests, build or health). Not rolled back: no earlier commit to return to. Skipped until a new commit lands. See ~/household-ai/logs/kitchen-deploy.log"
   exit 1
 fi
 
@@ -70,7 +83,7 @@ BACK=$(git rev-parse --short "$PREV")
 log "deploy of $NEW failed; rolling back to $BACK"
 if git reset -q --hard "$PREV" && sh ops/deploy-here.sh; then
   log "FAILED $NEW, rolled back to $BACK"
-  notify "Deploy of $NEW failed (tests, build or health). Rolled back to $BACK. See ~/household-ai/logs/kitchen-deploy.log"
+  notify "Deploy of $NEW failed (tests, build or health). Rolled back to $BACK. Skipped until a new commit lands. See ~/household-ai/logs/kitchen-deploy.log"
 else
   log "FAILED $NEW, rollback to $BACK FAILED"
   notify "Deploy of $NEW failed AND rollback to $BACK failed. Service may be down. See ~/household-ai/logs/kitchen-deploy.log"

@@ -24,6 +24,8 @@ Rule one: **family data stays in the house.**
   then runs `ops/watch-deploy.sh` on home-ai over SSH, so manual deploys get the same rollback and alerts.
 - Watcher (`ops/watch-deploy.sh`): takes a lock (`~/.kitchen-deploy.lock`), redeploys if the running version differs
   from HEAD, rolls back on a failed deploy, alerts via ntfy if a rollback fails, and alerts after 3 failed GitHub fetches.
+- A failed commit is recorded in `~/.kitchen-deploy.failed` and skipped (one log line, no alert) until a new commit
+  lands; self-heal redeploys have no rollback.
 - Logs on home-ai: `~/household-ai/logs/kitchen-deploy.log`, `docker logs kitchen-dashboard`.
 
 ## Rules
