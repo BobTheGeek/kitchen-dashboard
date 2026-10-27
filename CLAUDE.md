@@ -69,3 +69,4 @@ Rule one: **family data stays in the house.**
   Install/update: `sh ops/install-photo-sync.sh` on home-ai.
 - Server: `app/photos.py` (name rule, hours 7 AM–9 PM), routes `/api/photos` and `/photos/{name}`. Page: `slideshow.js` (kitchen only).
 - Test the page fast with `?idle=5` (idle seconds).
+- Emptying the album does not clear the wall (the sync keeps old photos when an export comes back empty). To clear it, delete the files in `~/household-ai/data/photos/kitchen/` on home-ai.

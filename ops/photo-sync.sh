@@ -40,9 +40,14 @@ for src in "$EXPORT"/*.jpg; do
   w=$(sips -g pixelWidth "$src" 2>/dev/null | awk '/pixelWidth/ {print $2}')
   h=$(sips -g pixelHeight "$src" 2>/dev/null | awk '/pixelHeight/ {print $2}')
   if [ "${w:-0}" -gt 3000 ] || [ "${h:-0}" -gt 3000 ]; then resize="-Z 3000"; else resize=""; fi
-  # shellcheck disable=SC2086
-  if ! sips $resize -s format jpeg "$src" --out "$OUT/.tmp.jpg" >/dev/null 2>&1; then
-    log "skipped $(basename "$src"): sips failed"
+  if [ -n "$resize" ]; then
+    # shellcheck disable=SC2086
+    if ! sips $resize -s format jpeg "$src" --out "$OUT/.tmp.jpg" >/dev/null 2>&1; then
+      log "skipped $(basename "$src"): sips failed"
+      continue
+    fi
+  elif ! cp "$src" "$OUT/.tmp.jpg"; then
+    log "skipped $(basename "$src"): copy failed"
     continue
   fi
   if [ -e "$dst" ]; then updated=$((updated + 1)); else added=$((added + 1)); fi
