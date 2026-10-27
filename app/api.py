@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
@@ -16,6 +17,7 @@ from app import actions, clock, settings, todos
 from app import store as st
 from app.calendar import CalendarService, FixtureSource, HttpSource, build_week
 from app.house import HouseOps
+from app.talk import FakeHouse, FakeWhisper, OpenWebUIClient, TalkError, TalkService, WhisperClient
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "app" / "static"
@@ -81,6 +83,19 @@ class HouseTodoIn(BaseModel):
     time: HHMM | None = None
 
 
+class TalkContext(BaseModel):
+    event: dict[str, str] | None = None
+
+
+class SessionIn(BaseModel):
+    context: TalkContext | None = None
+
+
+class MessageIn(BaseModel):
+    session_id: str
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
 def _fields(model: BaseModel) -> dict:
     out = model.model_dump(exclude_none=True)
     if "date" in out:
@@ -117,7 +132,29 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     store = st.Store(db_path)
     cal = CalendarService(source, store)
     ops = HouseOps(cal)
-    token = house_token if house_token is not None else _read_secret("HOUSE_TOKEN_FILE")
+    fake = os.environ.get("DASHBOARD_FAKE") == "1"
+    if house_token is None:
+        token = "dev-token" if fake else _read_secret("HOUSE_TOKEN_FILE")
+    else:
+        token = house_token
+    if whisper is None and fake:
+        whisper = FakeWhisper()
+    elif whisper is None and os.environ.get("WHISPER_URL"):
+        whisper = WhisperClient(os.environ["WHISPER_URL"])
+    if house is None and fake:
+        house = FakeHouse()
+    elif house is None:
+        key = _read_secret("OPENWEBUI_KEY_FILE")
+        house = OpenWebUIClient(os.environ.get("OPENWEBUI_URL", "http://open-webui:8080"), key) if key else None
+
+    def _fake_add(session_id: str, person: str, text: str) -> None:
+        with closing(store.connect()) as con:
+            now = clock.now()
+            ops.add_todo(con, now, session_id, person=person, text=text, date=now.date().isoformat())
+
+    if isinstance(house, FakeHouse) and house.do_add_todo is None:
+        house.do_add_todo = _fake_add
+    talk = TalkService(store, house, whisper)
     logging.getLogger("uvicorn.access").addFilter(QuietPolls())
 
     app = FastAPI(title="Kitchen Dashboard", version=version)
@@ -295,9 +332,34 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
                         "undoable": a["inverse"] is not None})
         return out
 
+    @app.exception_handler(TalkError)
+    async def talk_error(request: Request, exc: TalkError):
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+
+    @app.post("/api/talk/sessions")
+    def talk_start(body: SessionIn):
+        context = body.context.model_dump(exclude_none=True) if body.context else {}
+        return {"id": talk.sessions.create(context)["id"]}
+
     @app.get("/api/talk/sessions/{session_id}")
     def talk_session(session_id: str, con: Con):
-        return {"busy": False, "changes": change_cards(con, session_id)}
+        s = talk.sessions.get(session_id)
+        return {"busy": bool(s and s["busy"]), "changes": change_cards(con, session_id)}
+
+    @app.delete("/api/talk/sessions/{session_id}", status_code=204)
+    def talk_end(session_id: str):
+        talk.sessions.end(session_id)
+
+    @app.post("/api/talk/listen")
+    async def talk_listen(request: Request):
+        wav = await request.body()
+        if len(wav) > 2 * 1024 * 1024:
+            raise HTTPException(413, "That recording is too long")
+        return {"text": await run_in_threadpool(talk.listen, wav)}
+
+    @app.post("/api/talk/message")
+    def talk_message(body: MessageIn):
+        return talk.message(body.session_id, body.text, change_cards)
 
     @app.post("/api/talk/actions/{action_id}/undo")
     def talk_undo(action_id: int, con: Con):
