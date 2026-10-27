@@ -180,12 +180,13 @@ async function removeEvent(uid) {
   const ev = findEvent(uid);
   try {
     await request("DELETE", `/api/events/${encodeURIComponent(uid)}`);
-    closeSheet();
-    toast(`Removed ${esc(ev?.title ?? "event")}`, { ok: true });
-    await loadWeek();
   } catch (err) {
     sheetEl.innerHTML = `<div class="scrim" data-close></div>${eventSheet(ev, "confirm", errorText(err))}`;
+    return;
   }
+  closeSheet();
+  toast(`Removed ${esc(ev?.title ?? "event")}`, { ok: true });
+  loadWeek().catch(() => {});
 }
 
 export function startKitchen(root) {
