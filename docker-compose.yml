@@ -11,8 +11,15 @@ services:
     environment:
       CALENDAR_API: http://calendar-api:8000
       DASHBOARD_DB: /data/dashboard.db
+      OPENWEBUI_URL: http://open-webui:8080
+      OPENWEBUI_KEY_FILE: /run/kitchen-secrets/openwebui_key
+      HOUSE_TOKEN_FILE: /run/kitchen-secrets/house_token
+      WHISPER_URL: http://host.docker.internal:8178
     volumes:
       - ${HOME}/household-ai/data/dashboard:/data
+      - ${HOME}/household-ai/secrets/kitchen:/run/kitchen-secrets:ro   # only the kitchen's two secrets
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [household]
     restart: unless-stopped
 

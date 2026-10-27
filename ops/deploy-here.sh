@@ -5,6 +5,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 cd "$(dirname "$0")/.."
 export APP_VERSION="$(git rev-parse --short HEAD)"
 mkdir -p "$HOME/household-ai/data/dashboard"
+mkdir -p "$HOME/household-ai/secrets/kitchen" && chmod 700 "$HOME/household-ai/secrets/kitchen"
 echo "== testing $APP_VERSION"
 docker build -q --target test -t kitchen-dashboard:test . >/dev/null
 echo "== starting $APP_VERSION"
