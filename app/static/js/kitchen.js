@@ -1,6 +1,7 @@
 // Kitchen wall screen (design 2a and its states). Authored at 3000x2000; scaled to fit in dev windows.
 import { loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
 import { initTalkWall, openTalk, talkOpen } from "./talk-wall.js";
+import { initSlideshow } from "./slideshow.js";
 import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
 
 let stage, dash, nightEl;
@@ -279,6 +280,7 @@ export function startKitchen(root) {
   sheetEl = document.getElementById("sheet");
   nightEl = document.getElementById("night");
   initTalkWall(stage, dash);
+  initSlideshow(stage, { blocked: () => !sheetEl.hidden || talkOpen() || nightEl.classList.contains("on") });
   fitStage();
   window.addEventListener("resize", fitStage);
   nightEl.addEventListener("click", (e) => {

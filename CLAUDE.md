@@ -60,5 +60,13 @@ Rule one: **family data stays in the house.**
 ## Known open items
 - None. (The calendar-api iCloud 502 was fixed in household-ai on 2026-10-27.)
 
-## Coming next
-- Part 3: photo slideshow from a shared Apple Photos album synced on home-ai.
+## Photo slideshow (Part 3)
+- Spec: `docs/superpowers/specs/2026-10-27-kitchen-dashboard-part3-slideshow-design.md`.
+- Source: shared album "Kitchen Tablet Slideshow" (name in `ops/photo-sync.sh`). home-ai is signed in to Bob's Apple ID
+  with only Photos → Shared Albums on. Never turn on iCloud Photos, Keychain or Messages there.
+- Sync: launchd `com.household.kitchen-photo-sync` runs `ops/photo-sync.sh` hourly (osxphotos as a uv tool → `sips -Z 3000`)
+  into `~/household-ai/data/photos/kitchen/`, mounted read-only at `/photos`. Log: `~/household-ai/logs/kitchen-photo-sync.log`.
+  Install/update: `sh ops/install-photo-sync.sh` on home-ai.
+- Server: `app/photos.py` (name rule, hours 7 AM–9 PM), routes `/api/photos` and `/photos/{name}`. Page: `slideshow.js` (kitchen only).
+- Test the page fast with `?idle=5` (idle seconds).
+- Emptying the album does not clear the wall (the sync keeps old photos when an export comes back empty). To clear it, delete the files in `~/household-ai/data/photos/kitchen/` on home-ai.

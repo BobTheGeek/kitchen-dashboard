@@ -121,3 +121,41 @@ def test_quiet_polls_filter():
     assert f.filter(rec("/api/changes")) is False
     assert f.filter(rec("/api/version?x=1")) is False
     assert f.filter(rec("/api/week")) is True
+
+
+def photo_client(tmp_path, src, photos_dir):
+    return TestClient(create_app(db_path=str(tmp_path / "p.db"), source=src, version="v", photos_dir=photos_dir))
+
+
+def test_photos_list_and_file(tmp_path, src, freeze):
+    folder = tmp_path / "photos"
+    folder.mkdir()
+    (folder / "abc-1.jpg").write_bytes(b"\xff\xd8\xffjpeg")
+    (folder / "notes.txt").write_text("x")
+    c = photo_client(tmp_path, src, str(folder))
+    freeze("2026-10-27T10:00")
+    body = c.get("/api/photos").json()
+    assert [p["name"] for p in body["photos"]] == ["abc-1.jpg"] and body["active"] is True
+    assert isinstance(body["photos"][0]["v"], int)
+    freeze("2026-10-27T21:30")
+    assert c.get("/api/photos").json()["active"] is False
+    r = c.get("/photos/abc-1.jpg?v=1")
+    assert r.status_code == 200 and r.content == b"\xff\xd8\xffjpeg"
+    assert r.headers["content-type"] == "image/jpeg"
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
+def test_photos_refuses_bad_names(tmp_path, src):
+    folder = tmp_path / "photos"
+    folder.mkdir()
+    (tmp_path / "secret.jpg").write_bytes(b"x")
+    (folder / "notes.png").write_bytes(b"x")
+    c = photo_client(tmp_path, src, str(folder))
+    for path in ("/photos/..%2Fsecret.jpg", "/photos/%2e%2e%2fsecret.jpg", "/photos/notes.png", "/photos/missing.jpg"):
+        assert c.get(path).status_code == 404, path
+
+
+def test_photos_without_folder(tmp_path, src):
+    c = photo_client(tmp_path, src, None)
+    assert c.get("/api/photos").json()["photos"] == []
+    assert c.get("/photos/a.jpg").status_code == 404

@@ -5,7 +5,7 @@ body.is-kitchen { overflow: hidden; }
   transform: scale(var(--scale, 1)); overflow: hidden; background: var(--bg); user-select: none; }
 
 .dash { position: absolute; inset: 0; padding: 72px 80px; display: grid; grid-template-columns: 820px 1fr; gap: 72px;
-  transition: opacity .25s, filter .25s; }
+  transition: opacity .4s ease-out, filter .25s; }
 .dash.dimmed { opacity: .35; filter: blur(6px); }
 
 /* Left rail */
@@ -244,3 +244,36 @@ body.is-kitchen { overflow: hidden; }
 .toast-undo { margin-left: 24px; padding: 12px 28px; border: 3px solid rgba(255,255,255,.5); border-radius: 999px;
   font: 600 36px var(--mono); color: #fff; min-height: 100px; }
 .todo.new { outline: 8px solid var(--success); outline-offset: 6px; border-radius: 24px; }
+
+/* Idle slideshow (7a) and wake (7c) */
+.stage.photos .dash { opacity: 0; }
+.slides { position: absolute; inset: 0; background: #0f0e12; opacity: 0; pointer-events: none;
+  transition: opacity .8s, transform .4s ease-out; }
+.slides.on { opacity: 1; pointer-events: auto; }
+.slides.leaving { opacity: 0; transform: translateY(120px); transition: opacity .4s ease-out, transform .4s ease-out; }
+.slides .layer { position: absolute; inset: 0; opacity: 0; transition: opacity .8s; overflow: hidden; }
+.slides .layer.shown { opacity: 1; }
+.slides .layer img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.slides .layer img.fill { object-fit: cover; }
+.slides .layer img.fit { object-fit: contain; }
+.slides .layer img.blur { object-fit: cover; filter: blur(60px) brightness(.6); transform: scale(1.15); }
+.slides .shade { position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(to top, rgba(15,14,18,.75), transparent 45%); }
+.slides .wake-hint { position: absolute; top: 72px; right: 80px; z-index: 4; font: 600 32px var(--mono);
+  letter-spacing: .12em; color: rgba(255,255,255,.75); }
+.slides .info { position: absolute; left: 80px; right: 80px; bottom: 84px; z-index: 4; display: flex;
+  justify-content: space-between; align-items: flex-end; color: #fff; }
+.slides .s-clock { font: 600 240px/1 var(--sans); letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+  text-shadow: 0 4px 30px rgba(0,0,0,.3); }
+.slides .s-date { font: 40px var(--mono); letter-spacing: .08em; opacity: .85; margin-top: 12px; }
+.slides .s-next { display: flex; flex-direction: column; align-items: flex-end; gap: 20px; max-width: 1300px; }
+.slides .s-next .lbl { font: 600 32px var(--mono); letter-spacing: .12em; opacity: .7; }
+.slides .s-next .pill { display: flex; align-items: center; gap: 28px; padding: 20px 40px 20px 20px; border-radius: 999px;
+  background: rgba(255,255,255,.14); backdrop-filter: blur(20px); }
+.slides .s-next .chip { border-radius: 999px; padding: 10px 24px; font: 600 32px var(--mono); white-space: nowrap; }
+.slides .s-next .title { font: 600 48px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slides .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; z-index: 4;
+  background: rgba(255,255,255,.15); }
+.slides .progress i { display: block; height: 100%; background: rgba(255,255,255,.7); transform-origin: 0 50%;
+  animation: slide-progress 20s linear forwards; }
+@keyframes slide-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
