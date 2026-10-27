@@ -161,7 +161,7 @@ def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: 
             "end": end.isoformat() if end else None, "all_day": all_day, "location": raw.get("location"),
             "time_label": labels.time_label(start), "relative_label": labels.relative_label(d, start, today),
             "when_label": labels.when_label(d, start, end), "color": color, "ink": labels.ink_for(color),
-            "can_delete": bool(raw.get("added_by_house")),
+            "can_delete": bool(raw.get("added_by_house")), "is_today": d == today,
         }
         sort_key = (d, 0 if all_day else 1, start or now, raw["title"])
         by_day[d].append((sort_key, item))

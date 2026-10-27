@@ -63,6 +63,7 @@ def test_next_up(freeze):
     nxt = week(events, now)["next"]
     assert [e["title"] for e in nxt] == ["All day today", "Soccer", "Standup", "Piano"]
     assert [e["relative_label"] for e in nxt] == ["Today", "Today, 5:30 PM", "Tomorrow, 9:00 AM", "Wed, 4:00 PM"]
+    assert [e["is_today"] for e in nxt] == [True, True, False, False]
 
 
 def test_out_of_range_dropped_and_can_delete(freeze):

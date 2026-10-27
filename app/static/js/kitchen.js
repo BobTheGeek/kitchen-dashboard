@@ -30,7 +30,8 @@ function dayColumn(d) {
 
 function nextCards(next) {
   if (!next.length) return `<div class="next-empty">Nothing coming up</div>`;
-  return next.map((ev) => `<button class="next-card" data-uid="${esc(ev.uid)}"><div class="title">${esc(ev.title)}</div>` +
+  return next.map((ev) => `<button class="next-card ${ev.is_today ? "" : "later"}" data-uid="${esc(ev.uid)}">` +
+    `<div class="title">${esc(ev.title)}</div>` +
     `<div class="chip" ${chipStyle(ev)}>${esc(ev.relative_label)}</div></button>`).join("");
 }
 
@@ -51,7 +52,7 @@ function personCard(p) {
     : p.state === "open" ? `<div class="count">${p.left} left</div>` : "";
   const body = p.state === "empty"
     ? `<div class="person-empty"><div class="big">Nothing today</div>` +
-      `<div class="hint">say “add a todo for ${esc(p.name)}”<br>or use your phone</div></div>`
+      `<div class="hint">say <span class="q">“add a todo for ${esc(p.name)}”</span><br>or use your phone</div></div>`
     : p.todos.map((t) => `<button class="todo ${t.done ? "done" : ""} ${t.overdue ? "overdue" : ""}" data-todo="${t.id}">` +
         `<span class="ring">${icons.check(28, 6)}</span><span class="text">${esc(t.text)}</span>` +
         (t.time_label ? `<span class="when">${esc(t.time_label)}</span>` : "") + `</button>`).join("");
