@@ -131,12 +131,19 @@ function dowOf(dateIso) {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
 }
 
+function addLabel() {
+  const a = view.add;
+  const people = state.settings?.people ?? state.today?.people ?? [];
+  const who = people.find((p) => p.id === a.person);
+  return who ? `Add for ${esc(who.name)} · ${esc(dowOf(a.date))}${a.time ? ` ${fmtHHMM(a.time)}` : ""}` : "Add";
+}
+
 function renderAdd() {
   view.add ??= addDefaults();
   const a = view.add;
   const people = state.settings?.people ?? state.today?.people ?? [];
   const who = people.find((p) => p.id === a.person);
-  const label = who ? `Add for ${esc(who.name)} · ${esc(dowOf(a.date))}${a.time ? ` ${fmtHHMM(a.time)}` : ""}` : "Add";
+  const label = addLabel();
   const inStrip = (state.week?.days ?? []).some((d) => d.date === a.date);
   return `<form class="phone" id="add-form" autocomplete="off">` +
     `<div class="p-title-row"><div class="p-title">New TODO</div><button type="button" class="p-link" data-go="home">Cancel</button></div>` +
@@ -211,7 +218,18 @@ function onInput(e) {
       f.querySelector(".p-primary").disabled = !view.add.text.trim() || !view.add.person;
       return;
     }
-    if (e.target.name === "time") { view.add.time = e.target.value; render(); }
+    if (e.target.name === "time") {
+      // `change` only, and in place: replacing the input while iOS's wheel is open would close it.
+      if (e.type !== "change") return;
+      const a = view.add;
+      a.time = e.target.value;
+      const pill = e.target.closest(".p-time");
+      pill.querySelector(".mono").textContent = a.time ? fmtHHMM(a.time) : "Set a time";
+      pill.classList.toggle("sel", !!a.time);
+      f.querySelector("[data-add-anytime]").classList.toggle("sel", !a.time);
+      f.querySelector(".p-primary").innerHTML = addLabel();
+      return;
+    }
     if (e.target.name === "pickdate" && e.target.value) { view.add.date = e.target.value; render(); }
   }
   if (e.target.name === "custom" && e.type === "change") void setColor(view.settings.open, e.target.value);
