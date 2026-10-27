@@ -172,7 +172,7 @@ async function close({ cancelled = false } = {}) {
     for (let i = 0; i < 30; i++) {
       try {
         const s = await talkApi.status(cur.id);
-        changes = s.changes;
+        changes = [...cur.changes, ...s.changes.filter((c) => !cur.seen.has(c.id))];  // never re-toast an earlier turn's change
         if (!s.busy) break;
       } catch { break; }
       await new Promise((r) => setTimeout(r, 2000));
