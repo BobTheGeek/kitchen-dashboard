@@ -72,7 +72,7 @@ function render() {
   const sk = loading ? skeleton() : null;
   const now = new Date();
   const st = status();
-  dash.className = `dash ${loading ? "loading" : ""} ${dash.classList.contains("dimmed") ? "dimmed" : ""}`;
+  dash.className = `dash ${loading ? "loading" : ""} ${sheetEl && !sheetEl.hidden ? "dimmed" : ""}`;
   dash.innerHTML =
     `<div class="rail"><div><div class="clock" id="clock">${clockText(now)}</div>` +
     `<div class="date" id="date">${dateText(now)}</div></div>` +
@@ -113,22 +113,100 @@ async function toggleTodo(btn) {
   }
 }
 
-// Replaced in Task 9.
-export function openEvent(uid) { void uid; }
-export function openDay(dateIso) { void dateIso; }
+let sheetEl;
+
+function findEvent(uid) {
+  for (const d of state.week?.days ?? []) {
+    const ev = d.events.find((e) => e.uid === uid);
+    if (ev) return ev;
+  }
+  return null;
+}
+
+function showSheet(html) {
+  dash.classList.add("dimmed");
+  sheetEl.innerHTML = `<div class="scrim" data-close></div>${html}`;
+  sheetEl.hidden = false;
+}
+
+export function closeSheet() {
+  sheetEl.hidden = true;
+  sheetEl.innerHTML = "";
+  dash.classList.remove("dimmed");
+}
+
+function eventSheet(ev, mode = "view", error = "") {
+  const who = (state.today?.people ?? []).filter((p) => p.name === ev.calendar);
+  const band = `<div class="band" style="background:${esc(ev.color)};color:${esc(ev.ink)};${mode === "view" ? "" : "opacity:.5"}">` +
+    `<div><div class="cal">${esc(ev.calendar.toUpperCase())}</div><div class="title">${esc(ev.title)}</div></div>` +
+    (mode === "view" ? `<button class="close" data-close>${icons.x(52, 8, ev.ink)}</button>` : "") + `</div>`;
+  if (mode === "confirm") {
+    return `<div class="sheet event">${band}<div class="confirm">` +
+      `<div class="q">Remove this from the ${esc(ev.calendar)} calendar?</div>` +
+      `<div class="sub ${error ? "err" : ""}">${esc(error || "Everyone's phone will update too.")}</div></div>` +
+      `<div class="actions">` + (error
+        ? `<button class="btn outline flex" data-close>Close</button>`
+        : `<button class="btn outline flex" data-keep="${esc(ev.uid)}">Keep it</button>` +
+          `<button class="btn danger flex" data-remove="${esc(ev.uid)}">Yes, remove</button>`) + `</div></div>`;
+  }
+  const facts = `<div class="k">WHEN</div><div>${esc(ev.when_label)}</div>` +
+    (ev.location ? `<div class="k">WHERE</div><div>${esc(ev.location)}</div>` : "") +
+    (who.length ? `<div class="k">WHO</div><div>${who.map((p) => `<span class="who-pill"><span class="avatar">` +
+      `${esc(p.initial)}</span>${esc(p.name)}</span>`).join(" ")}</div>` : "");
+  const actions = ev.can_delete
+    ? `<button class="btn outline w460" data-delete="${esc(ev.uid)}">Delete</button>`
+    : `<div class="note">Change it in your Calendar app</div>`;
+  return `<div class="sheet event">${band}<div class="facts">${facts}</div><div class="actions">${actions}</div></div>`;
+}
+
+export function openEvent(uid) {
+  const ev = findEvent(uid);
+  if (ev) showSheet(eventSheet(ev));
+}
+
+export function openDay(dateIso) {
+  const d = state.week?.days.find((x) => x.date === dateIso);
+  if (!d) return;
+  const [y, m, day] = d.date.split("-").map(Number);
+  const month = new Date(Date.UTC(y, m - 1, day)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  showSheet(`<div class="sheet day-sheet"><div class="head"><div><div class="dow">${esc(d.dow_long)}</div>` +
+    `<div class="big">${d.day} ${esc(month)}</div></div><button class="close" data-close>${icons.x(52, 8, "#1c1b1f")}</button></div>` +
+    `<div class="rows">${d.events.map((ev) => `<button class="day-row" data-uid="${esc(ev.uid)}">` +
+      `<span class="t">${esc(ev.time_label.toUpperCase())}</span><span class="pill" ${chipStyle(ev)}>${esc(ev.title)}</span>` +
+      `</button>`).join("")}</div></div>`);
+}
+
+async function removeEvent(uid) {
+  const ev = findEvent(uid);
+  try {
+    await request("DELETE", `/api/events/${encodeURIComponent(uid)}`);
+    closeSheet();
+    toast(`Removed ${esc(ev?.title ?? "event")}`, { ok: true });
+    await loadWeek();
+  } catch (err) {
+    sheetEl.innerHTML = `<div class="scrim" data-close></div>${eventSheet(ev, "confirm", errorText(err))}`;
+  }
+}
 
 export function startKitchen(root) {
-  root.innerHTML = `<div class="stage" id="stage"><div class="dash" id="dash"></div></div>`;
+  root.innerHTML = `<div class="stage" id="stage"><div class="dash" id="dash"></div>` +
+    `<div id="sheet" hidden></div></div>`;
   stage = document.getElementById("stage");
   dash = document.getElementById("dash");
+  sheetEl = document.getElementById("sheet");
   fitStage();
   window.addEventListener("resize", fitStage);
   stage.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-todo],[data-uid],[data-day]");
+    const t = e.target.closest("[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove]");
     if (!t) return;
-    if (t.dataset.todo) toggleTodo(t);
-    else if (t.dataset.uid) openEvent(t.dataset.uid);
-    else if (t.dataset.day) openDay(t.dataset.day);
+    const d = t.dataset;
+    if (d.close !== undefined) closeSheet();
+    else if (d.delete) showSheet(eventSheet(findEvent(d.delete), "confirm"));
+    else if (d.keep) showSheet(eventSheet(findEvent(d.keep)));
+    else if (d.remove) removeEvent(d.remove);
+    else if (d.todo) toggleTodo(t);
+    else if (d.uid) openEvent(d.uid);
+    else if (d.day) openDay(d.day);
   });
   onChange(render);
   render();
