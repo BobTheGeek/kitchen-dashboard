@@ -149,3 +149,31 @@ body.is-phone { background: var(--bg); }
 .is-phone .toast-ok { width: 24px; height: 24px; border-radius: 50%; background: #fff; display: flex; align-items: center;
   justify-content: center; }
 .is-phone .toast-ok .i-check { width: 10px !important; height: 5px !important; border-width: 0 0 3px 3px !important; }
+
+/* Phone talk thread (4d) */
+.p-talk-view { padding-bottom: 120px; }
+.p-title .dot { color: var(--accent); font-size: 20px; vertical-align: 3px; }
+.p-thread { display: flex; flex-direction: column; gap: 10px; }
+.p-msg { max-width: 82%; padding: 12px 16px; font: 17px/1.35 var(--sans); }
+.p-msg.you { align-self: flex-end; background: var(--ink); color: #fff; border-radius: 22px 22px 6px 22px; }
+.p-msg.house { align-self: flex-start; background: var(--surface); border-radius: 22px 22px 22px 6px; }
+.p-msg.typing { display: flex; gap: 6px; }
+.p-msg.typing i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); animation: p-bounce 1.4s infinite; }
+.p-msg.typing i:nth-child(2) { animation-delay: .2s; } .p-msg.typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes p-bounce { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
+.p-tcard { align-self: flex-start; width: 82%; background: var(--surface); border-radius: 16px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px; }
+.p-tcard.undone { opacity: .5; }
+.p-tcard .bar { width: 8px; align-self: stretch; border-radius: 4px; }
+.p-tcard .b { flex: 1; } .p-tcard .t { font: 600 16px var(--sans); } .p-tcard .m { font: 12px var(--mono); color: var(--muted); }
+.p-tverb { background: var(--success); color: #fff; border-radius: 999px; padding: 4px 10px; font: 600 11px var(--mono); }
+.p-chipbtn { min-height: 48px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--divider-2); font: 600 14px var(--sans); }
+.p-tbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px 30px; display: flex; gap: 10px; max-width: 900px;
+  margin: 0 auto; background: linear-gradient(rgba(250,249,247,0), var(--bg) 35%); }
+.p-tbar input { flex: 1; height: 56px; border-radius: 999px; border: 2px solid var(--divider-2); padding: 0 20px;
+  font: 17px var(--sans); background: var(--surface); color: var(--ink); }
+.p-mic { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); display: flex; align-items: center;
+  justify-content: center; }
+.p-mic.on { background: var(--danger); animation: p-pulse 1s infinite; }
+@keyframes p-pulse { 50% { transform: scale(1.08); } }
+.p-btn.soft { background: var(--accent-soft); color: var(--accent); }

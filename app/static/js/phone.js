@@ -1,11 +1,13 @@
 // Phone layout: home (4a), event sheet (8h), TODO edit (8i); add (4b) and settings (4c) are added in Task 12.
 import { loadSettings, loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
+import { endTalkPhone, initTalkPhone, onTalkClick, onTalkSubmit, renderTalkPhone, startTalkPhone } from "./talk-phone.js";
 import { chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
 
 let root;
 const view = { screen: "home", person: null, sheet: null };
 
 export function go(screen) {
+  if (view.screen === "talk" && screen !== "talk") endTalkPhone();
   view.screen = screen; view.sheet = null;
   if (screen === "add") view.add = null;
   if (screen === "settings") view.settings = null;
@@ -68,7 +70,7 @@ function home() {
     `<div class="p-sec" style="gap:6px"><div class="p-label" style="margin-bottom:4px">THIS WEEK</div>${week}</div>` +
     `<div class="p-sec" style="gap:12px"><div class="p-label">TODAY'S TODOS</div><div class="p-switch">${switcher}</div>` +
     `<div class="p-list">${list}</div></div></div>` +
-    `<div class="p-bar"><button class="p-talk" aria-disabled="true">${icons.mic(20)}Talk to the house</button>` +
+    `<div class="p-bar"><button class="p-talk" data-go-talk>${icons.mic(20)}Talk to the house</button>` +
     `<button class="p-add" data-go="add" aria-label="Add a TODO">+</button></div>`;
 }
 
@@ -87,7 +89,8 @@ function eventSheet() {
   else if (s.error) actions = `<div class="p-err" style="flex:1">${esc(s.error)}</div><button class="p-btn outline" data-close>Close</button>`;
   else if (s.confirm) actions = `<button class="p-btn outline flex" data-keep>Keep it</button>` +
     `<button class="p-btn danger flex" data-remove="${esc(ev.uid)}">Yes, remove</button>`;
-  else actions = `<span style="flex:1"></span><button class="p-btn outline danger-text" data-delete>Delete</button>`;
+  else actions = `<button class="p-btn soft flex" data-ask="${esc(ev.uid)}">Ask the house to change it</button>` +
+    `<button class="p-btn outline danger-text" data-delete>Delete</button>`;
   return `<div class="p-scrim" data-close></div><div class="p-sheet">` +
     `<div class="p-band" style="background:${esc(ev.color)};color:${esc(ev.ink)}"><div>` +
     `<div class="cal">${esc(ev.calendar.toUpperCase())}</div><div class="title">${esc(ev.title)}</div></div>` +
@@ -232,7 +235,7 @@ function onInput(e) {
 }
 
 function render() {
-  const screen = view.screen === "add" ? renderAdd() : view.screen === "settings" ? renderSettings() : home();
+  const screen = view.screen === "talk" ? renderTalkPhone() : view.screen === "add" ? renderAdd() : view.screen === "settings" ? renderSettings() : home();
   const sheet = !view.sheet ? "" : view.sheet.type === "event" ? eventSheet() : todoSheet();
   root.innerHTML = screen + sheet;
 }
@@ -256,6 +259,17 @@ async function onClick(e) {
   const t = e.target.closest("button,[data-close]");
   if (!t) return;
   const d = t.dataset;
+  const handled = onTalkClick(d);
+  if (handled === "close") { go("home"); return; }
+  if (handled) return;
+  if (d.goTalk !== undefined) { go("talk"); startTalkPhone(); return; }
+  if (d.ask) {
+    const ev = findEvent(d.ask);
+    view.sheet = null;
+    go("talk");
+    startTalkPhone(ev ? { event: { uid: ev.uid, title: ev.title, when_label: ev.when_label, calendar: ev.calendar } } : null);
+    return;
+  }
   if (d.addPerson) { syncAdd(); view.add.person = Number(d.addPerson); render(); return; }
   if (d.addDate) { syncAdd(); view.add.date = d.addDate; render(); return; }
   if (d.addAnytime !== undefined) { syncAdd(); view.add.time = ""; render(); return; }
@@ -318,6 +332,7 @@ function formFail(errId, err) {
 }
 
 async function onSubmit(e) {
+  if (onTalkSubmit(e)) return;
   if (e.target.id === "add-form") {
     e.preventDefault();
     const a = view.add;
@@ -367,6 +382,7 @@ export function startPhone(el) {
   root.addEventListener("submit", onSubmit);
   root.addEventListener("input", onInput);
   root.addEventListener("change", onInput);
+  initTalkPhone(render);
   onChange(rerenderUnlessEditing);
   render();
   startPolling({ alwaysOn: false });
