@@ -1,0 +1,44 @@
+# Kitchen Dashboard: notes for Claude Code
+
+Family wall display for the Gibilaro household (Bob, Belen, Ben). Part of the private **household-ai** system.
+Rule one: **family data stays in the house.**
+
+## Where things are
+- Spec: `docs/superpowers/specs/2026-10-26-kitchen-dashboard-part1-design.md` · Design: `docs/design/README.md`
+  (print a design card: `python3 -I scripts/design_card.py 2a`).
+- Server: `app/` (FastAPI). `store` (SQLite + change counter), `todos` (rules), `settings` (colors, people),
+  `calendar` (calendar-api client, cache, week builder), `labels` (pure formatting), `api` (routes).
+- Page: `app/static/` plain HTML/CSS/ES modules. `kitchen.js` (3000×2000 stage), `phone.js` (≤ 900px), shared `api.js`, `ui.js`.
+
+## How it runs
+- home-ai (M1 Mac, OrbStack): container `kitchen-dashboard`, port 8081 → 8000, network `household-ai_default`,
+  data `~/household-ai/data/dashboard/dashboard.db`.
+- Kiosk: Surface Book, Fedora, full-screen browser at `http://home-ai:8081`. Never deploy to it.
+- Calendar: `calendar-api` (household-ai repo), read-only here except `DELETE /events/{uid}` for House-made events.
+
+## Commands
+- Dev with fake data: `scripts/dev.sh` → http://localhost:8081 (narrow the window for the phone layout)
+- Tests: `pytest -q && ruff check .` (on the dev Mac Docker may not be running; CI runs the Docker test stage: `docker build --target test .`)
+- Deploy: push to `main` → live within ~2 min (home-ai watcher polls every 2 min).
+  Right away: `scripts/deploy.sh`. It refuses unless you are on `main` with HEAD equal to `origin/main`,
+  then runs `ops/watch-deploy.sh` on home-ai over SSH, so manual deploys get the same rollback and alerts.
+- Watcher (`ops/watch-deploy.sh`): takes a lock (`~/.kitchen-deploy.lock`), redeploys if the running version differs
+  from HEAD, rolls back on a failed deploy, alerts via ntfy if a rollback fails, and alerts after 3 failed GitHub fetches.
+- Logs on home-ai: `~/household-ai/logs/kitchen-deploy.log`, `docker logs kitchen-dashboard`.
+
+## Rules
+- No external network calls, CDNs, web fonts or analytics. System fonts only.
+- All dates/times America/Chicago, computed on the server. Never slice calendar ISO strings for dates.
+- Kitchen: touch only, ≥ 100px targets, nothing below 30px; never use browser zoom to fix sizing.
+- Escape all calendar/TODO text (`esc()` in `ui.js`).
+- Polling: `/api/changes` every 10 s, week + today every 60 s. Writes to todos/people/colors must call `store.bump`.
+- Ask Bob before touching household-ai, Tailscale rules, kiosk config, or what family data the screen shows.
+- `main` is production. Branch + PR for anything bigger than a small tweak.
+
+## Known open items
+- calendar-api returns `502 Couldn't reach iCloud calendars: AuthorizationError`. The fix lives in household-ai (Bob).
+  Until then `calendar_ok` is `false` and the page shows `no calendar data yet`. See the spec, "Known issue".
+
+## Coming next
+- Part 2: Talk to the house (voice/chat panel, local speech-to-text, House AI tools, HTTPS on the kiosk).
+- Part 3: photo slideshow from a shared Apple Photos album synced on home-ai.
