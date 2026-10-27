@@ -4,6 +4,7 @@ import { Recorder, micAvailable, talkApi } from "./talk.js";
 import { errorText, esc, icons, toast } from "./ui.js";
 
 const AUTO_CLOSE_MS = 20_000;
+const TYPING_CLOSE_MS = 60_000;
 const KEYS = ["1234567890", "qwertyuiop", "asdfghjkl'", "zxcvbnm,.?"];
 const SUGGEST = ["Add a todo for…", "Add an event…", "What's on this weekend?"];
 let el, dash, t = null, pendingUndo = [];
@@ -29,11 +30,13 @@ export function initTalkWall(stageEl, dashEl) {
 export async function openTalk({ context = null, night = false, typing = false } = {}) {
   if (t) return;
   t = { mode: "starting", text: "", typed: "", shift: false, reply: "", changes: [], night, err: "", errKind: "",
-        bars: new Array(16).fill(0.25), context, id: null, rec: null, closeTimer: null };
+        bars: new Array(16).fill(0.25), context, id: null, rec: null, closeTimer: null, seen: new Set() };
+  const cur = t;
   dash.classList.add("dimmed");
   el.hidden = false;
   draw();
   if (!(await ensureSession())) return;
+  if (t !== cur || cur.mode !== "starting") return;  // closed, or the person chose typing meanwhile
   if (typing) return setMode("typing");
   if (!micAvailable()) return setMode("nomic");
   listen();
@@ -56,20 +59,29 @@ async function ensureSession() {
   }
 }
 
-function setMode(mode) { if (t) { t.mode = mode; draw(); } }
+// Idle auto-close: the panel never stays open forever. Answer/miss/error/nomic 20 s, typing 60 s.
+function arm() {
+  if (!t) return;
+  clearTimeout(t.closeTimer);
+  const ms = t.mode === "typing" ? TYPING_CLOSE_MS : ["answer", "miss", "error", "nomic"].includes(t.mode) ? AUTO_CLOSE_MS : 0;
+  if (ms) t.closeTimer = setTimeout(() => close(), ms);
+}
+
+function setMode(mode) { if (t) { t.mode = mode; draw(); arm(); } }
 
 async function listen() {
-  clearTimeout(t.closeTimer);
-  t.text = "";
+  const cur = t;
+  cur.text = "";
   setMode("listening");
   if (!(await ensureSession())) return;
-  const cur = t;
+  if (t !== cur || cur.mode !== "listening") return;
   const rec = new Recorder({ onLevel: level, onSilence: () => finishListening() });
   cur.rec = rec;
   try {
     await rec.start();
+    if (t !== cur || cur.rec !== rec) rec.cancel();  // closed or switched to typing while the mic opened
   } catch {
-    if (t === cur) { cur.rec = null; setMode("nomic"); }
+    if (t === cur && cur.rec === rec) { cur.rec = null; setMode("nomic"); }
   }
 }
 
@@ -78,7 +90,15 @@ async function finishListening() {
   const rec = cur?.rec;
   if (!rec) return;
   cur.rec = null;
-  const { wav, heard } = await rec.stop();
+  let out;
+  try {
+    out = await rec.stop();
+  } catch {
+    if (t === cur) fail("Voice isn't working right now", "voice");
+    return;
+  }
+  if (t !== cur) return;
+  const { wav, heard } = out;
   if (!heard) return setMode("miss");
   cur.text = "…";
   setMode("thinking");
@@ -103,11 +123,24 @@ async function send(text) {
     if (t !== cur) return;
     cur.reply = res.reply;
     cur.changes = res.changes;
+    res.changes.forEach((c) => cur.seen.add(c.id));
     setMode("answer");
     if (res.changes.length) Promise.all([loadWeek(), loadToday()]).catch(() => {});
-    cur.closeTimer = setTimeout(() => close(), AUTO_CLOSE_MS);
   } catch (err) {
-    if (t === cur) fail(errorText(err), "house");
+    if (t !== cur) return;
+    // The House can time out after its tools already wrote: show what landed instead of an error + Retry.
+    let late = [];
+    try { late = (await talkApi.status(cur.id)).changes.filter((c) => !cur.seen.has(c.id)); } catch { /* keep the error */ }
+    if (t !== cur) return;
+    if (late.length) {
+      late.forEach((c) => cur.seen.add(c.id));
+      cur.reply = "Done \u2014 the house finished, but slowly.";
+      cur.changes = late;
+      setMode("answer");
+      Promise.all([loadWeek(), loadToday()]).catch(() => {});
+    } else {
+      fail(errorText(err), "house");
+    }
   }
 }
 
@@ -135,7 +168,7 @@ async function close({ cancelled = false } = {}) {
   el.innerHTML = "";
   dash.classList.remove("dimmed");
   let changes = cur.changes;
-  if (cancelled && cur.id) {
+  if (cur.id && (cancelled || !changes.length)) {  // late writes (slow House, Cancel) still get the toast
     for (let i = 0; i < 30; i++) {
       try {
         const s = await talkApi.status(cur.id);
@@ -212,8 +245,7 @@ async function onClick(e) {
   if (!b || !t) return;
   clearTimeout(t.closeTimer);
   await act(b);
-  // Any touch that leaves the panel on the answer (e.g. Undo) restarts the idle auto-close.
-  if (t?.mode === "answer") { clearTimeout(t.closeTimer); t.closeTimer = setTimeout(() => close(), AUTO_CLOSE_MS); }
+  arm();  // any touch restarts the idle auto-close for the mode the panel is now in
 }
 
 async function act(b) {

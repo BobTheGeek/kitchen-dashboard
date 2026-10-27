@@ -21,7 +21,7 @@ function redraw() {
 }
 
 export async function startTalkPhone(context = null) {
-  s = { id: null, items: [], busy: false, rec: null };
+  s = { id: null, items: [], busy: false, rec: null, seen: new Set() };
   redraw();
   const cur = s;
   try { cur.id = (await talkApi.start(context)).id; } catch (err) { if (s === cur) { cur.failed = true; cur.items.push({ role: "house", text: errorText(err), changes: [] }); } }
@@ -40,7 +40,7 @@ export function endTalkPhone() {
 }
 
 async function send(text) {
-  if (!s?.id || !text) return;
+  if (!s?.id || !text || s.busy) return;  // one question at a time
   const cur = s;
   s.items.push({ role: "you", text, changes: [] });
   s.busy = true;
@@ -49,9 +49,19 @@ async function send(text) {
     const res = await talkApi.message(cur.id, text);
     if (res.changes.length) Promise.all([loadWeek(), loadToday()]).catch(() => {});
     if (s !== cur) return;
+    res.changes.forEach((c) => cur.seen.add(c.id));
     cur.items.push({ role: "house", text: res.reply, changes: res.changes });
   } catch (err) {
     if (s !== cur) return;
+    // A slow House may have written before it timed out: show those changes (with Undo) before the error.
+    let late = [];
+    try { late = (await talkApi.status(cur.id)).changes.filter((c) => !cur.seen.has(c.id)); } catch { /* just the error */ }
+    if (s !== cur) return;
+    if (late.length) {
+      late.forEach((c) => cur.seen.add(c.id));
+      cur.items.push({ role: "house", text: "", changes: late });
+      Promise.all([loadWeek(), loadToday()]).catch(() => {});
+    }
     cur.items.push({ role: "house", text: errorText(err), changes: [] });
   }
   cur.busy = false;
@@ -98,7 +108,7 @@ export function renderTalkPhone() {
   if (!s) return "";
   const thread = s.items.map((m) => m.role === "you"
     ? `<div class="p-msg you">${esc(m.text)}</div>`
-    : `<div class="p-msg house">${esc(m.text)}</div>${m.changes.map(changeCard).join("")}`).join("") +
+    : `${m.text ? `<div class="p-msg house">${esc(m.text)}</div>` : ""}${m.changes.map(changeCard).join("")}`).join("") +
     (s.busy ? `<div class="p-msg house typing"><i></i><i></i><i></i></div>` : "");
   return `<div class="phone p-talk-view"><div class="p-title-row"><div class="p-title"><span class="dot">●</span> The house</div>` +
     `<button class="p-link" data-tclose>Close</button></div><div class="p-thread">${thread || `<div class="p-empty">Ask the house anything.</div>`}</div>` +
@@ -127,6 +137,7 @@ export function onTalkSubmit(e) {
   if (e.target.id !== "talk-form") return false;
   e.preventDefault();
   const text = e.target.msg.value.trim();
+  if (s?.busy) return true;  // keep the typed text until the house has answered
   e.target.msg.value = "";
   send(text);
   return true;
