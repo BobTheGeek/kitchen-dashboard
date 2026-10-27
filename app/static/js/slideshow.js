@@ -42,7 +42,7 @@ async function loadList() {
   } catch {
     return;  // keep the last list; try again at the next fetch
   }
-  if (running && !active) stop();
+  if (running && (!active || !photos.length)) stop();
 }
 
 function resetIdle() {
@@ -103,6 +103,7 @@ function pick() {
 
 async function showNext(id) {
   if (id !== run) return;
+  if (!photos.length) return stop();  // the folder emptied while showing
   const p = pick();
   const img = new Image();
   img.src = `/photos/${encodeURIComponent(p.name)}?v=${p.v}`;
