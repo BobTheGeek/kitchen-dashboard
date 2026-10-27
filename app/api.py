@@ -101,6 +101,11 @@ class SessionIn(BaseModel):
     context: TalkContext | None = None
 
 
+class ClientErrorIn(BaseModel):
+    message: Annotated[str, StringConstraints(max_length=2000)]
+    where: Annotated[str, StringConstraints(max_length=300)] = ""
+
+
 class MessageIn(BaseModel):
     session_id: str
     text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
@@ -350,6 +355,12 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     @app.exception_handler(TalkError)
     async def talk_error(request: Request, exc: TalkError):
         return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+
+    # The kiosk has no console: the page reports its JavaScript errors here so they reach `docker logs`.
+    @app.post("/api/client-error", status_code=204)
+    def client_error(body: ClientErrorIn, user_agent: Annotated[str, Header()] = ""):
+        logging.getLogger("uvicorn.error").warning("Page error: %r at %r (%s)", body.message[:500], body.where,
+                                                   user_agent[:120])
 
     @app.post("/api/talk/sessions")
     def talk_start(body: SessionIn):

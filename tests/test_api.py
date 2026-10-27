@@ -30,6 +30,14 @@ def test_page_and_version(client):
     assert client.get("/api/version").json() == {"version": "abc123"}
 
 
+def test_client_error_is_logged(client, caplog):
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        r = client.post("/api/client-error", json={"message": "TypeError: x is undefined", "where": "talk-wall.js:9:1"})
+    assert r.status_code == 204
+    assert "TypeError: x is undefined" in caplog.text and "talk-wall.js:9:1" in caplog.text
+    assert client.post("/api/client-error", json={"message": "x" * 2001}).status_code == 422
+
+
 def test_week(client):
     w = client.get("/api/week").json()
     assert len(w["days"]) == 7 and w["calendar_ok"] is True and w["fetched_at"].startswith("2026-10-26T15:00")
