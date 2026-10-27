@@ -107,3 +107,14 @@ def test_move_to_other_person(con, freeze):
     t = add(con, now, "Bob", "x", "2026-10-26")
     moved = todos.update(con, now, t["id"], {"person_id": ids(con)["Ben"], "time": "15:30"})
     assert moved["person_id"] == ids(con)["Ben"] and moved["time"] == "15:30"
+
+
+def test_new_todo_after_all_done_reopens_the_list(con, freeze):
+    now = freeze("2026-10-26T09:00")
+    t = add(con, now, "Bob", "dishes", "2026-10-26")
+    todos.update(con, now, t["id"], {"done": True})
+    assert person(todos.today_view(con, now), "Bob")["state"] == "all_done"
+    add(con, now, "Bob", "laundry", "2026-10-26")
+    bob = person(todos.today_view(con, now), "Bob")
+    assert bob["state"] == "open" and bob["left"] == 1
+    assert [x["text"] for x in bob["todos"]] == ["laundry", "dishes"]
