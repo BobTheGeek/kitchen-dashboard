@@ -58,5 +58,7 @@ export function toast(html, { ok = false, ms = 6000, cls = "" } = {}) {
 export function errorText(err) {
   const d = err?.data?.detail;
   if (Array.isArray(d)) return d.map((x) => x.msg).join(", ");
-  return d || err?.message || "Something went wrong";
+  if (d) return d;
+  if (err?.status === undefined) return "Couldn't reach the home server";  // fetch/network failure
+  return err.message || "Something went wrong";
 }

@@ -169,8 +169,14 @@ async function onClick(e) {
   if (d.delTodo) {
     const res = await act(() => request("DELETE", `/api/todos/${d.delTodo}`), "Deleted");
     if (res === true) { view.sheet = null; await loadToday().catch(() => {}); render(); }
-    else document.getElementById("todo-err").textContent = errorText(res);
+    else todoFail(res);
   }
+}
+
+// 422 keeps the inline field message; anything else also gets the short toast.
+function todoFail(err) {
+  document.getElementById("todo-err").textContent = errorText(err);
+  if (err?.status !== 422) toast("Couldn't save, try again");
 }
 
 async function onSubmit(e) {
@@ -182,7 +188,7 @@ async function onSubmit(e) {
     person_id: view.sheet.person ?? t.person_id };
   const res = await act(() => request("PATCH", `/api/todos/${t.id}`, body), "Saved");
   if (res === true) { view.sheet = null; await loadToday().catch(() => {}); render(); }
-  else document.getElementById("todo-err").textContent = errorText(res);
+  else todoFail(res);
 }
 
 function tick() {
