@@ -15,7 +15,7 @@ const light = (ev) => ev.ink === "#1c1b1f";
 
 function chip(ev) {
   return `<button class="ev ${light(ev) ? "light" : ""}" data-uid="${esc(ev.uid)}" ${chipStyle(ev)}>` +
-    `<div class="t">${esc(ev.time_label)}</div>${esc(ev.title)}</button>`;
+    `<div class="t">${esc(ev.time_label)}</div><div class="n">${esc(ev.title)}</div></button>`;
 }
 
 function dayColumn(d) {
