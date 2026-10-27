@@ -8,16 +8,28 @@ let s = null;  // { id, items: [{role, text, changes}], busy, rec }
 
 export function initTalkPhone(fn) { rerender = fn; }
 
+// The page re-renders by replacing innerHTML, which would wipe a half-typed message. Carry the
+// field's value, focus and caret across every redraw.
+function redraw() {
+  const f = document.querySelector("#talk-form input[name=msg]");
+  const keep = f && { v: f.value, focus: document.activeElement === f, a: f.selectionStart, b: f.selectionEnd };
+  rerender();
+  const g = document.querySelector("#talk-form input[name=msg]");
+  if (!g || !keep) return;
+  g.value = keep.v;
+  if (keep.focus) { g.focus(); try { g.setSelectionRange(keep.a, keep.b); } catch { /* not supported */ } }
+}
+
 export async function startTalkPhone(context = null) {
   s = { id: null, items: [], busy: false, rec: null };
-  rerender();
+  redraw();
   const cur = s;
-  try { cur.id = (await talkApi.start(context)).id; } catch (err) { if (s === cur) cur.items.push({ role: "house", text: errorText(err), changes: [] }); }
+  try { cur.id = (await talkApi.start(context)).id; } catch (err) { if (s === cur) { cur.failed = true; cur.items.push({ role: "house", text: errorText(err), changes: [] }); } }
   if (s !== cur) {  // closed while starting: don't leave the session open on the server
     if (cur.id) talkApi.end(cur.id);
     return;
   }
-  rerender();
+  redraw();
 }
 
 export function endTalkPhone() {
@@ -32,7 +44,7 @@ async function send(text) {
   const cur = s;
   s.items.push({ role: "you", text, changes: [] });
   s.busy = true;
-  rerender();
+  redraw();
   try {
     const res = await talkApi.message(cur.id, text);
     if (res.changes.length) Promise.all([loadWeek(), loadToday()]).catch(() => {});
@@ -43,7 +55,7 @@ async function send(text) {
     cur.items.push({ role: "house", text: errorText(err), changes: [] });
   }
   cur.busy = false;
-  rerender();
+  redraw();
   window.scrollTo(0, document.body.scrollHeight);
 }
 
@@ -54,7 +66,7 @@ async function toggleMic() {
   if (cur.rec) {
     const rec = cur.rec;
     cur.rec = null;
-    rerender();
+    redraw();
     const { wav, heard } = await rec.stop();
     if (s !== cur) return;
     if (!heard) return toast("Didn't catch that");
@@ -70,7 +82,7 @@ async function toggleMic() {
   cur.starting = true;
   try { await rec.start(); } catch { if (cur.rec === rec) cur.rec = null; if (s === cur) toast("The microphone is off"); }
   cur.starting = false;
-  if (s === cur) rerender();
+  if (s === cur) redraw();
 }
 
 const verbClass = (c) => (c.undone ? "undone" : "");
@@ -89,7 +101,8 @@ export function renderTalkPhone() {
     : `<div class="p-msg house">${esc(m.text)}</div>${m.changes.map(changeCard).join("")}`).join("") +
     (s.busy ? `<div class="p-msg house typing"><i></i><i></i><i></i></div>` : "");
   return `<div class="phone p-talk-view"><div class="p-title-row"><div class="p-title"><span class="dot">●</span> The house</div>` +
-    `<button class="p-link" data-tclose>Close</button></div><div class="p-thread">${thread || `<div class="p-empty">Ask the house anything.</div>`}</div></div>` +
+    `<button class="p-link" data-tclose>Close</button></div><div class="p-thread">${thread || `<div class="p-empty">Ask the house anything.</div>`}</div>` +
+    (s.failed ? `<div class="p-err">Not connected \u2014 close and try again</div>` : "") + `</div>` +
     `<form class="p-tbar" id="talk-form" autocomplete="off"><input name="msg" placeholder="Ask or tell the house…" maxlength="500">` +
     `<button type="button" class="p-mic ${s.rec ? "on" : ""}" data-tmic aria-label="Talk">${icons.mic(20)}</button></form>`;
 }
@@ -103,7 +116,7 @@ export function onTalkClick(d) {
     talkApi.undo(id).then(() => {
       s?.items.forEach((m) => m.changes.forEach((c) => { if (c.id === id) c.undone = true; }));
       Promise.all([loadWeek(), loadToday()]).catch(() => {});
-      rerender();
+      redraw();
     }).catch(() => toast("Couldn't undo"));
     return true;
   }
