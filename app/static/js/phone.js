@@ -145,8 +145,8 @@ function renderAdd() {
       `<button type="button" class="p-who ${p.id === a.person ? "sel" : ""}" data-add-person="${p.id}"><span class="ph"></span>` +
       `${esc(p.name)}</button>`).join("")}</div></div>` +
     `<div class="p-sec"><div class="p-title-row"><div class="p-label">WHEN</div>` +
-    `<label class="p-accent-link">${inStrip ? "Pick another date" : esc(a.date)}` +
-    `<input class="p-hidden-input" type="date" name="pickdate" value="${esc(a.date)}"></label></div>` +
+    `<button type="button" class="p-accent-link" data-pick-date>${inStrip ? "Pick another date" : esc(a.date)}</button>` +
+    `<input class="p-hidden-input" type="date" name="pickdate" tabindex="-1" value="${esc(a.date)}"></div>` +
     `<div class="p-days">${(state.week?.days ?? []).map((d) => `<button type="button" class="p-day ${d.date === a.date ? "sel" : ""}"` +
       ` data-add-date="${esc(d.date)}"><span class="w">${esc(d.dow)}</span><span class="n">${d.day}</span></button>`).join("")}</div></div>` +
     `<div class="p-sec"><div class="p-label">TIME · OPTIONAL</div><div class="p-pills">` +
@@ -183,14 +183,18 @@ function renderSettings() {
     `<button class="p-link" style="color:var(--accent)" data-go="home">Done</button></div>` +
     `<div class="p-sec"><div class="p-label">CALENDARS</div><div class="p-card">${calRows || `<div class="p-empty">No calendars yet</div>`}</div></div>` +
     `<div class="p-sec"><div class="p-label">FAMILY</div><div class="p-card">${famRows}</div>` +
-    (s.error ? `<div class="p-err">${esc(s.error)}</div>` : "") + `</div>` +
+    `<div class="p-err" id="fam-err">${esc(s.error)}</div></div>` +
     `<div class="p-sec p-later"><div class="p-label">LATER</div><div class="p-card">` +
     `<div class="p-fam">Night mode · 10 PM – 6 AM</div><div class="p-fam">Photo slideshow after 5 min</div></div></div></div>`;
 }
 
 async function setColor(name, color) {
-  await request("PUT", `/api/settings/calendars/${encodeURIComponent(name)}`, { color });
-  await Promise.all([loadSettings(), loadWeek()]).catch(() => {});
+  try {
+    await request("PUT", `/api/settings/calendars/${encodeURIComponent(name)}`, { color });
+    await Promise.all([loadSettings(), loadWeek()]).catch(() => {});
+  } catch {
+    toast("Couldn't save, try again");
+  }
   render();
 }
 
@@ -210,7 +214,7 @@ function onInput(e) {
     if (e.target.name === "time") { view.add.time = e.target.value; render(); }
     if (e.target.name === "pickdate" && e.target.value) { view.add.date = e.target.value; render(); }
   }
-  if (e.target.name === "custom" && e.type === "change") setColor(view.settings.open, e.target.value);
+  if (e.target.name === "custom" && e.type === "change") void setColor(view.settings.open, e.target.value);
 }
 
 function render() {
@@ -252,6 +256,12 @@ async function onClick(e) {
     render();
     return;
   }
+  if (d.pickDate !== undefined) {
+    const i = document.querySelector("input[name=pickdate]");
+    if (i.showPicker) { try { i.showPicker(); return; } catch { /* fall through */ } }
+    i.focus(); i.click();
+    return;
+  }
   if (d.close !== undefined) { view.sheet = null; render(); return; }
   if (d.go) { go(d.go); return; }
   if (d.person) { view.person = Number(d.person); render(); return; }
@@ -289,6 +299,12 @@ async function onClick(e) {
   }
 }
 
+function famFail(err) {
+  view.settings.error = errorText(err);
+  document.getElementById("fam-err").textContent = view.settings.error;
+  if (err?.status !== 422) toast("Couldn't save, try again");
+}
+
 // 422 keeps the inline field message; anything else also gets the short toast.
 function formFail(errId, err) {
   document.getElementById(errId).textContent = errorText(err);
@@ -311,8 +327,9 @@ async function onSubmit(e) {
     const name = e.target.pname.value;
     const res = await act(() => id === "new" ? request("POST", "/api/settings/people", { name })
       : request("PATCH", `/api/settings/people/${id}`, { name }));
-    view.settings.error = res === true ? "" : errorText(res);
-    if (res === true) view.settings.editing = null;
+    if (res !== true) { famFail(res); return; }  // keep the form so the typed name survives
+    view.settings.error = "";
+    view.settings.editing = null;
     await Promise.all([loadSettings(), loadToday()]).catch(() => {});
     render();
     return;
