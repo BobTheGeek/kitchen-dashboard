@@ -138,3 +138,49 @@ def test_fixture_source_materializes_offsets(tmp_path, freeze):
     assert src.delete(timed["uid"])[0] == 403
     assert src.delete(house["uid"]) == (204, {})
     assert [e["title"] for e in src.events(datetime(2026, 10, 26, tzinfo=TZ).date(), 7)] == ["T"]
+
+
+def test_fields_from_event_timed_and_all_day():
+    timed = ev("Family", "Dentist", "2026-10-29T21:00:00Z", "2026-10-29T21:45:00Z", location="Dr. Osei")
+    assert cal.fields_from_event(timed) == {"title": "Dentist", "calendar": "Family", "location": "Dr. Osei",
+                                            "date": "2026-10-29", "start_time": "16:00", "end_time": "16:45"}
+    allday = ev("Family", "Halloween", "2026-10-31", "2026-11-01", all_day=True)
+    assert cal.fields_from_event(allday) == {"title": "Halloween", "calendar": "Family", "location": None,
+                                             "date": "2026-10-31"}
+
+
+def test_fixture_create_update_find_delete(tmp_path, freeze):
+    p = tmp_path / "f.json"
+    p.write_text('{"events": []}')
+    freeze("2026-10-27T08:00")
+    src = cal.FixtureSource(p)
+    status, body = src.create({"title": "Dentist", "date": "2026-10-29", "start_time": "16:00", "duration_minutes": 45})
+    uid = body["event"]["uid"]
+    assert status == 200 and body["saved"] and body["event"]["added_by_house"]
+    assert src.find(uid, None, 0)["title"] == "Dentist"
+    status, body = src.update(uid, {"title": "Dentist · Ben", "start_time": "15:00"})
+    assert status == 200 and cal.local(body["event"]["start"]).hour == 15 and body["event"]["title"] == "Dentist · Ben"
+    assert src.delete(uid)[0] in (200, 204)
+    assert src.find(uid, None, 0) is None
+
+
+def test_service_create_invalidates(store, freeze):
+    src = FakeSource([])
+    svc = cal.CalendarService(src, store)
+    freeze("2026-10-27T09:00")
+    svc.events()
+    src.create_result = (200, {"saved": True, "event": ev("Family", "New", "2026-10-28T10:00:00-05:00", uid="n1",
+                                                           house=True)})
+    assert svc.create({"title": "New", "date": "2026-10-28"})[0] == 200
+    svc.events()
+    assert src.calls == 2
+
+
+def test_service_find_uses_cache_then_source(store, freeze):
+    src = FakeSource([ev("Family", "a", "2026-10-27T10:00:00-05:00", uid="u1")])
+    svc = cal.CalendarService(src, store)
+    freeze("2026-10-27T09:00")
+    svc.events()
+    assert svc.find("u1")["title"] == "a"
+    src.found = ev("Family", "far", "2026-12-01T10:00:00-06:00", uid="u9")
+    assert svc.find("u9")["title"] == "far"

@@ -32,21 +32,38 @@ class HttpSource:
         except Exception as e:
             raise CalendarError(f"calendar-api unavailable: {type(e).__name__}") from e
 
-    def delete(self, uid: str) -> tuple[int, dict]:
-        url = f"{self.base_url}/events/{urllib.parse.quote(uid, safe='')}"
-        req = urllib.request.Request(url, method="DELETE")
+    def _send(self, method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(f"{self.base_url}{path}", data=data, method=method,
+                                     headers={"Content-Type": "application/json"} if data else {})
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                body = r.read()
-                return r.status, (json.loads(body) if body else {})
+                raw = r.read()
+                return r.status, (json.loads(raw) if raw else {})
         except urllib.error.HTTPError as e:
-            body = e.read()
+            raw = e.read()
             try:
-                return e.code, json.loads(body)
+                return e.code, json.loads(raw)
             except ValueError:
-                return e.code, {"detail": body.decode(errors="replace") or e.reason}
+                return e.code, {"detail": raw.decode(errors="replace") or e.reason}
         except Exception as e:
             return 502, {"detail": f"calendar-api unavailable: {type(e).__name__}"}
+
+    def delete(self, uid: str) -> tuple[int, dict]:
+        return self._send("DELETE", f"/events/{urllib.parse.quote(uid, safe='')}")
+
+    def create(self, fields: dict) -> tuple[int, dict]:
+        return self._send("POST", "/events", fields)
+
+    def update(self, uid: str, fields: dict) -> tuple[int, dict]:
+        return self._send("PATCH", f"/events/{urllib.parse.quote(uid, safe='')}", fields)
+
+    def find(self, uid: str, start: date, days: int) -> dict | None:
+        query = urllib.parse.urlencode({"start": start.isoformat(), "days": days})
+        status, body = self._send("GET", f"/events?{query}")
+        if status >= 300:
+            raise CalendarError(body.get("detail", "calendar-api error"))
+        return next((e for e in body.get("events", []) if e["uid"] == uid), None)
 
 
 class FixtureSource:
@@ -55,6 +72,8 @@ class FixtureSource:
     def __init__(self, path: Path):
         self.items = json.loads(Path(path).read_text(encoding="utf-8"))["events"]
         self.deleted: set[str] = set()
+        self.extra: list[dict] = []
+        self._n = 0
 
     def _materialize(self) -> list[dict]:
         today = clock.now().date()
@@ -70,12 +89,52 @@ class FixtureSource:
             out.append({"calendar": f["calendar"], "title": f["title"], "when": "", "start": start, "end": end,
                         "all_day": bool(f.get("all_day")), "location": f.get("location"), "uid": f"fake-{i}",
                         "added_by_house": bool(f.get("house"))})
-        return [e for e in out if e["uid"] not in self.deleted]
+        return [e for e in out if e["uid"] not in self.deleted] + list(self.extra)
 
     def events(self, start: date, days: int) -> list[dict]:
         return self._materialize()
 
+    def _event(self, fields: dict, uid: str) -> dict:
+        d = date.fromisoformat(fields["date"])
+        if fields.get("start_time"):
+            hh, mm = map(int, fields["start_time"].split(":"))
+            s = datetime(d.year, d.month, d.day, hh, mm, tzinfo=clock.TZ)
+            if fields.get("end_time"):
+                eh, em = map(int, fields["end_time"].split(":"))
+                e = s.replace(hour=eh, minute=em)
+            else:
+                e = s + timedelta(minutes=int(fields.get("duration_minutes") or 60))
+            start, end, all_day = s.isoformat(), e.isoformat(), False
+        else:
+            start, end, all_day = d.isoformat(), (d + timedelta(days=1)).isoformat(), True
+        return {"calendar": fields.get("calendar") or "Family", "title": fields["title"], "when": "", "start": start,
+                "end": end, "all_day": all_day, "location": fields.get("location"), "uid": uid, "added_by_house": True}
+
+    def create(self, fields: dict) -> tuple[int, dict]:
+        self._n += 1
+        ev = self._event(fields, f"fake-new-{self._n}")
+        self.extra.append(ev)
+        return 200, {"saved": True, "event": ev}
+
+    def find(self, uid: str, start, days) -> dict | None:
+        return next((e for e in self._materialize() if e["uid"] == uid), None)
+
+    def update(self, uid: str, fields: dict) -> tuple[int, dict]:
+        cur = self.find(uid, None, 0)
+        if cur is None:
+            return 404, {"detail": f"No House-created event with uid {uid}."}
+        if not cur["added_by_house"]:
+            return 403, {"detail": "House can only change or delete events it created."}
+        new = self._event(fields_from_event(cur) | {k: v for k, v in fields.items() if v is not None}, uid)
+        self.extra = [e for e in self.extra if e["uid"] != uid]
+        self.deleted.add(uid)  # hides the base copy if it was a fixture event
+        self.extra.append(new)
+        return 200, {"saved": True, "event": new}
+
     def delete(self, uid: str) -> tuple[int, dict]:
+        if any(e["uid"] == uid for e in self.extra):
+            self.extra = [e for e in self.extra if e["uid"] != uid]
+            return 204, {}
         match = next((e for e in self._materialize() if e["uid"] == uid), None)
         if match is None:
             return 404, {"detail": "No such event"}
@@ -136,11 +195,45 @@ class CalendarService:
             self.invalidate()
         return status, body
 
+    def create(self, fields: dict) -> tuple[int, dict]:
+        status, body = self.source.create(fields)
+        if status < 300:
+            self.invalidate()
+        return status, body
 
-def _local(value: str | None) -> datetime | None:
+    def update(self, uid: str, fields: dict) -> tuple[int, dict]:
+        status, body = self.source.update(uid, fields)
+        if status < 300:
+            self.invalidate()
+        return status, body
+
+    def find(self, uid: str) -> dict | None:
+        for e in (self._mem[2] if self._mem else []):
+            if e["uid"] == uid:
+                return e
+        return self.source.find(uid, clock.now().date(), 60)
+
+
+def local(value: str | None) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value).astimezone(clock.TZ)
+
+
+_local = local
+
+
+def fields_from_event(ev: dict) -> dict:
+    """calendar-api event → NewEvent fields (used to re-create or restore an event on Undo)."""
+    out = {"title": ev["title"], "calendar": ev.get("calendar"), "location": ev.get("location")}
+    if ev.get("all_day"):
+        out["date"] = date.fromisoformat(ev["start"][:10]).isoformat()  # all-day start is a plain date
+        return out
+    start, end = local(ev["start"]), local(ev.get("end"))
+    out |= {"date": start.date().isoformat(), "start_time": start.strftime("%H:%M")}
+    if end is not None:
+        out["end_time"] = end.strftime("%H:%M")
+    return out
 
 
 def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: int = 7) -> dict:
