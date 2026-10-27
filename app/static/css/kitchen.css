@@ -14,7 +14,8 @@ body.is-kitchen { overflow: hidden; }
 .date { font: 40px var(--mono); color: var(--muted); letter-spacing: .06em; margin-top: 12px; }
 .next { display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; }
 .label { font: 600 32px var(--mono); letter-spacing: .1em; color: var(--muted); }
-.next-card { background: var(--surface); border-radius: 40px; padding: 28px 36px; display: flex; flex-direction: column;
+.next-list { display: contents; }
+.next-card {background: var(--surface); border-radius: 40px; padding: 28px 36px; display: flex; flex-direction: column;
   gap: 14px; min-height: 120px; text-align: left; }
 .next-card .title { font: 600 44px/1.1 var(--sans); }
 .next-card .chip { align-self: flex-start; border-radius: 999px; padding: 10px 24px; font: 600 32px var(--mono); }

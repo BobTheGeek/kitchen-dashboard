@@ -69,35 +69,87 @@ function skeleton() {
   };
 }
 
+// The dash is built once; each section is replaced only when its markup changed, so a poll with no change
+// touches nothing (the All-done fade and confetti must play once, not every 10 s). Clock, date and status
+// are updated by tickClock() and take no part in the comparison.
+let slots = null;
+const personEls = new Map();  // person id -> { el, html }
+
+function buildShell() {
+  dash.innerHTML =
+    `<div class="rail"><div><div class="clock" id="clock"></div><div class="date" id="date"></div></div>` +
+    `<div class="next"><div class="label">NEXT UP</div><div id="next-list" class="next-list"></div></div>` +
+    `<button class="talk" id="talk" aria-disabled="true"></button>` +
+    `<div class="status" id="status"></div></div>` +
+    `<div class="right"><div class="week" id="week"></div><div class="people" id="people"></div></div>`;
+  slots = { next: dash.querySelector("#next-list"), talk: dash.querySelector("#talk"), week: dash.querySelector("#week"),
+    people: dash.querySelector("#people") };
+  personEls.clear();
+}
+
+function setHtml(el, html) {
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
+}
+
+function renderPeople(loading, people, skHtml) {
+  const box = slots.people;
+  if (loading) {
+    personEls.clear();
+    setHtml(box, `${skHtml}<div class="slot">+</div>`);
+    return;
+  }
+  if (box._html !== undefined) { box._html = undefined; box.innerHTML = ""; }  // leaving the skeleton
+  const keep = new Set();
+  let prev = null;
+  for (const p of people) {
+    const html = personCard(p);
+    let rec = personEls.get(p.id);
+    if (!rec || rec.html !== html) {
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html;
+      const el = tpl.content.firstElementChild;
+      if (rec) rec.el.replaceWith(el); else box.append(el);
+      rec = { el, html };
+      personEls.set(p.id, rec);
+    }
+    keep.add(p.id);
+    const want = prev ? prev.nextElementSibling : box.firstElementChild;
+    if (want !== rec.el) box.insertBefore(rec.el, want);
+    prev = rec.el;
+  }
+  for (const [id, rec] of personEls) if (!keep.has(id)) { rec.el.remove(); personEls.delete(id); }
+  let plus = box.querySelector(":scope > .slot");
+  if (!plus) { plus = document.createElement("div"); plus.className = "slot"; plus.textContent = "+"; }
+  if (box.lastElementChild !== plus) box.append(plus);
+}
+
+function updateStatus() {
+  const st = status();
+  const s = document.getElementById("status");
+  s.className = `status ${st.tone === "amber" ? "amber" : ""}`;
+  s.innerHTML = `<span class="dot"></span>${esc(st.text)}`;
+}
+
 function render() {
   const loading = !state.week || !state.today;
   const sk = loading ? skeleton() : null;
-  const now = new Date();
-  const st = status();
   dash.className = `dash ${loading ? "loading" : ""} ${sheetEl && !sheetEl.hidden ? "dimmed" : ""}`;
-  dash.innerHTML =
-    `<div class="rail"><div><div class="clock" id="clock">${clockText(now)}</div>` +
-    `<div class="date" id="date">${dateText(now)}</div></div>` +
-    `<div class="next"><div class="label">NEXT UP</div>${loading ? sk.next : nextCards(state.week.next)}</div>` +
-    `<button class="talk ${loading ? "skel" : ""}" aria-disabled="true">` +
-    (loading ? "" : `<span class="mic">${icons.mic(50)}</span>Talk to the house`) + `</button>` +
-    `<div class="status ${st.tone === "amber" ? "amber" : ""}" id="status"><span class="dot"></span>${esc(st.text)}</div></div>` +
-    `<div class="right"><div class="week">${loading ? sk.week : state.week.days.map(dayColumn).join("")}</div>` +
-    `<div class="people">${loading ? sk.people : state.today.people.slice(0, 3).map(personCard).join("")}` +
-    `<div class="slot">+</div></div></div>`;
+  if (!slots) { buildShell(); tickClock(); }
+  setHtml(slots.next, loading ? sk.next : nextCards(state.week.next));
+  slots.talk.className = `talk ${loading ? "skel" : ""}`;
+  setHtml(slots.talk, loading ? "" : `<span class="mic">${icons.mic(50)}</span>Talk to the house`);
+  setHtml(slots.week, loading ? sk.week : state.week.days.map(dayColumn).join(""));
+  renderPeople(loading, loading ? [] : state.today.people.slice(0, 3), loading ? sk.people : "");
+  updateStatus();
 }
 
 function tickClock() {
   const now = new Date();
-  const c = document.getElementById("clock");
-  if (c) {
-    c.textContent = clockText(now);
-    document.getElementById("date").textContent = dateText(now);
-    const st = status();
-    const s = document.getElementById("status");
-    s.className = `status ${st.tone === "amber" ? "amber" : ""}`;
-    s.innerHTML = `<span class="dot"></span>${esc(st.text)}`;
-  }
+  document.getElementById("clock").textContent = clockText(now);
+  document.getElementById("date").textContent = dateText(now);
+  updateStatus();
   return now;
 }
 
