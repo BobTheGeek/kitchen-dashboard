@@ -26,6 +26,11 @@ def test_token_required(client):
     assert client.get("/api/house/calendars", headers={"Authorization": "Bearer nope"}).status_code == 401
 
 
+@pytest.mark.parametrize("value", [b"Bearer \xe9", "Basic x", "Bearer", "Bearer "])
+def test_malformed_authorization_is_401(client, value):
+    assert client.get("/api/house/calendars", headers={"Authorization": value}).status_code == 401
+
+
 def test_not_configured(tmp_path, src, freeze):
     freeze("2026-10-27T09:00")
     c = TestClient(create_app(db_path=str(tmp_path / "n.db"), source=src, version="t", house_token=""))

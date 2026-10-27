@@ -211,7 +211,8 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     def house_auth(authorization: Annotated[str | None, Header()] = None):
         if not token:
             raise HTTPException(503, "House tools are not set up on the dashboard")
-        if not authorization or not hmac.compare_digest(authorization, f"Bearer {token}"):
+        if not authorization or not hmac.compare_digest(authorization.encode("utf-8"),
+                                                        f"Bearer {token}".encode()):
             raise HTTPException(401, "Bad house token")
 
     House = Annotated[None, Depends(house_auth)]
