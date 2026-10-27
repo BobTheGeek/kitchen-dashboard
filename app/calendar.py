@@ -53,7 +53,7 @@ class FixtureSource:
     """Fake calendar-api for dev and CI. Fixture dates are day offsets from today."""
 
     def __init__(self, path: Path):
-        self.items = json.loads(Path(path).read_text())["events"]
+        self.items = json.loads(Path(path).read_text(encoding="utf-8"))["events"]
         self.deleted: set[str] = set()
 
     def _materialize(self) -> list[dict]:
