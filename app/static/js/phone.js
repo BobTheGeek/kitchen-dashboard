@@ -1,11 +1,16 @@
 // Phone layout: home (4a), event sheet (8h), TODO edit (8i); add (4b) and settings (4c) are added in Task 12.
-import { loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
+import { loadSettings, loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
 import { chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
 
 let root;
 const view = { screen: "home", person: null, sheet: null };
 
-export function go(screen) { view.screen = screen; view.sheet = null; render(); window.scrollTo(0, 0); }
+export function go(screen) {
+  view.screen = screen; view.sheet = null;
+  if (screen === "add") view.add = null;
+  if (screen === "settings") view.settings = null;
+  render(); window.scrollTo(0, 0);
+}
 
 const shortChip = (ev) => (ev.all_day ? ev.title : `${ev.time_label.replace(/ [AP]M$/, "")} ${ev.title}`);
 
@@ -108,8 +113,105 @@ function todoSheet() {
     ` style="width:110px">Delete</button><button class="p-btn primary">Save</button></div></form></div>`;
 }
 
-function renderAdd() { return `<div class="phone"><button class="p-link" data-go="home">Back</button></div>`; }
-function renderSettings() { return `<div class="phone"><button class="p-link" data-go="home">Back</button></div>`; }
+function addDefaults() {
+  const days = state.week?.days ?? [];
+  return { text: "", person: currentPerson()?.id ?? null, date: days[0]?.date ?? "", time: "" };
+}
+
+function fmtHHMM(hhmm) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+function dowOf(dateIso) {
+  const day = state.week?.days.find((d) => d.date === dateIso);
+  if (day) return day.dow[0] + day.dow.slice(1).toLowerCase();
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+}
+
+function renderAdd() {
+  view.add ??= addDefaults();
+  const a = view.add;
+  const people = state.settings?.people ?? state.today?.people ?? [];
+  const who = people.find((p) => p.id === a.person);
+  const label = who ? `Add for ${esc(who.name)} · ${esc(dowOf(a.date))}${a.time ? ` ${fmtHHMM(a.time)}` : ""}` : "Add";
+  const inStrip = (state.week?.days ?? []).some((d) => d.date === a.date);
+  return `<form class="phone" id="add-form" autocomplete="off">` +
+    `<div class="p-title-row"><div class="p-title">New TODO</div><button type="button" class="p-link" data-go="home">Cancel</button></div>` +
+    `<input class="p-big-input" name="text" maxlength="120" placeholder="What needs doing?" value="${esc(a.text)}" autofocus>` +
+    `<div class="p-sec"><div class="p-label">WHO</div><div class="p-pills">${people.map((p) =>
+      `<button type="button" class="p-who ${p.id === a.person ? "sel" : ""}" data-add-person="${p.id}"><span class="ph"></span>` +
+      `${esc(p.name)}</button>`).join("")}</div></div>` +
+    `<div class="p-sec"><div class="p-title-row"><div class="p-label">WHEN</div>` +
+    `<label class="p-accent-link">${inStrip ? "Pick another date" : esc(a.date)}` +
+    `<input class="p-hidden-input" type="date" name="pickdate" value="${esc(a.date)}"></label></div>` +
+    `<div class="p-days">${(state.week?.days ?? []).map((d) => `<button type="button" class="p-day ${d.date === a.date ? "sel" : ""}"` +
+      ` data-add-date="${esc(d.date)}"><span class="w">${esc(d.dow)}</span><span class="n">${d.day}</span></button>`).join("")}</div></div>` +
+    `<div class="p-sec"><div class="p-label">TIME · OPTIONAL</div><div class="p-pills">` +
+    `<button type="button" class="p-time ${a.time ? "" : "sel"}" data-add-anytime>Any time</button>` +
+    `<label class="p-time ${a.time ? "sel" : ""}"><span class="mono">${a.time ? fmtHHMM(a.time) : "Set a time"}</span>` +
+    `<input type="time" name="time" value="${esc(a.time)}"></label></div></div>` +
+    `<div class="p-err" id="add-err"></div>` +
+    `<button class="p-primary" ${a.text.trim() && who ? "" : "disabled"}>${label}</button></form>`;
+}
+
+function renderSettings() {
+  view.settings ??= { open: null, editing: null, error: "" };
+  const s = view.settings;
+  const cals = state.settings?.calendars ?? [];
+  const people = state.settings?.people ?? [];
+  const PRESETS = ["#f2c230", "#e0702a", "#d2382f", "#e0457b", "#6b45d9", "#2b5fd9", "#14a08a", "#2fb36a"];
+  const calRows = cals.map((c) => `<button class="p-cal" data-cal="${esc(c.name)}"><span class="sw" style="background:${esc(c.color)}"></span>` +
+    `<span class="nm">${esc(c.name)}</span><span class="hex">${esc(c.color.toUpperCase())}</span></button>` +
+    (s.open === c.name ? `<div class="p-swatches"><div class="row">${PRESETS.map((p) =>
+      `<button class="p-sw ${p === c.color ? "sel" : ""}" style="background:${p}" data-color="${p}" aria-label="${p}"></button>`).join("")}` +
+      `<label class="p-sw custom ${PRESETS.includes(c.color) ? "" : "sel"}"><i></i><input type="color" name="custom" value="${esc(c.color)}"></label></div>` +
+      `<div class="p-preview"><span class="p-wchip" style="background:${esc(c.color)};color:${esc(c.ink)}">Preview: Pizza night</span>` +
+      `<span class="hint">text auto-flips</span></div></div>` : "")).join("");
+  const famRows = people.map((p) => s.editing === p.id
+    ? `<form class="p-fam" data-person-form="${p.id}"><span class="ph"></span><input name="pname" maxlength="40" value="${esc(p.name)}" required>` +
+      `<button class="edit" style="color:var(--accent)">Save</button><button type="button" class="edit" style="color:var(--danger)" data-remove-person="${p.id}">Remove</button></form>`
+    : `<div class="p-fam"><span class="ph"></span><span class="nm">${esc(p.name)}</span>` +
+      `<button class="edit" data-edit-person="${p.id}">Edit</button></div>`).join("") +
+    (s.editing === "new"
+      ? `<form class="p-fam" data-person-form="new"><span class="ph add">+</span><input name="pname" maxlength="40" placeholder="Name" required autofocus>` +
+        `<button class="edit" style="color:var(--accent)">Add</button></form>`
+      : `<button class="p-fam add-row" data-edit-person="new"><span class="ph add">+</span>Add a person</button>`);
+  return `<div class="phone"><div class="p-title-row"><div class="p-title">Settings</div>` +
+    `<button class="p-link" style="color:var(--accent)" data-go="home">Done</button></div>` +
+    `<div class="p-sec"><div class="p-label">CALENDARS</div><div class="p-card">${calRows || `<div class="p-empty">No calendars yet</div>`}</div></div>` +
+    `<div class="p-sec"><div class="p-label">FAMILY</div><div class="p-card">${famRows}</div>` +
+    (s.error ? `<div class="p-err">${esc(s.error)}</div>` : "") + `</div>` +
+    `<div class="p-sec p-later"><div class="p-label">LATER</div><div class="p-card">` +
+    `<div class="p-fam">Night mode · 10 PM – 6 AM</div><div class="p-fam">Photo slideshow after 5 min</div></div></div></div>`;
+}
+
+async function setColor(name, color) {
+  await request("PUT", `/api/settings/calendars/${encodeURIComponent(name)}`, { color });
+  await Promise.all([loadSettings(), loadWeek()]).catch(() => {});
+  render();
+}
+
+function syncAdd() {
+  const f = document.getElementById("add-form");
+  if (f) view.add.text = f.text.value;
+}
+
+function onInput(e) {
+  const f = e.target.form;
+  if (f?.id === "add-form") {
+    if (e.target.name === "text") {
+      view.add.text = e.target.value;
+      f.querySelector(".p-primary").disabled = !view.add.text.trim() || !view.add.person;
+      return;
+    }
+    if (e.target.name === "time") { view.add.time = e.target.value; render(); }
+    if (e.target.name === "pickdate" && e.target.value) { view.add.date = e.target.value; render(); }
+  }
+  if (e.target.name === "custom" && e.type === "change") setColor(view.settings.open, e.target.value);
+}
 
 function render() {
   const screen = view.screen === "add" ? renderAdd() : view.screen === "settings" ? renderSettings() : home();
@@ -136,6 +238,20 @@ async function onClick(e) {
   const t = e.target.closest("button,[data-close]");
   if (!t) return;
   const d = t.dataset;
+  if (d.addPerson) { syncAdd(); view.add.person = Number(d.addPerson); render(); return; }
+  if (d.addDate) { syncAdd(); view.add.date = d.addDate; render(); return; }
+  if (d.addAnytime !== undefined) { syncAdd(); view.add.time = ""; render(); return; }
+  if (d.cal) { view.settings.open = view.settings.open === d.cal ? null : d.cal; render(); return; }
+  if (d.color) { await setColor(view.settings.open, d.color); return; }
+  if (d.editPerson) { view.settings.editing = d.editPerson === "new" ? "new" : Number(d.editPerson); view.settings.error = ""; render(); return; }
+  if (d.removePerson) {
+    const res = await act(() => request("DELETE", `/api/settings/people/${d.removePerson}`));
+    view.settings.error = res === true ? "" : errorText(res);
+    if (res === true) view.settings.editing = null;
+    await Promise.all([loadSettings(), loadToday()]).catch(() => {});
+    render();
+    return;
+  }
   if (d.close !== undefined) { view.sheet = null; render(); return; }
   if (d.go) { go(d.go); return; }
   if (d.person) { view.person = Number(d.person); render(); return; }
@@ -169,17 +285,38 @@ async function onClick(e) {
   if (d.delTodo) {
     const res = await act(() => request("DELETE", `/api/todos/${d.delTodo}`), "Deleted");
     if (res === true) { view.sheet = null; await loadToday().catch(() => {}); render(); }
-    else todoFail(res);
+    else formFail("todo-err", res);
   }
 }
 
 // 422 keeps the inline field message; anything else also gets the short toast.
-function todoFail(err) {
-  document.getElementById("todo-err").textContent = errorText(err);
+function formFail(errId, err) {
+  document.getElementById(errId).textContent = errorText(err);
   if (err?.status !== 422) toast("Couldn't save, try again");
 }
 
 async function onSubmit(e) {
+  if (e.target.id === "add-form") {
+    e.preventDefault();
+    const a = view.add;
+    const res = await act(() => request("POST", "/api/todos",
+      { person_id: a.person, text: a.text, date: a.date, time: a.time || null }), "Added");
+    if (res === true) { await loadToday().catch(() => {}); view.person = a.person; go("home"); }
+    else formFail("add-err", res);
+    return;
+  }
+  if (e.target.dataset.personForm) {
+    e.preventDefault();
+    const id = e.target.dataset.personForm;
+    const name = e.target.pname.value;
+    const res = await act(() => id === "new" ? request("POST", "/api/settings/people", { name })
+      : request("PATCH", `/api/settings/people/${id}`, { name }));
+    view.settings.error = res === true ? "" : errorText(res);
+    if (res === true) view.settings.editing = null;
+    await Promise.all([loadSettings(), loadToday()]).catch(() => {});
+    render();
+    return;
+  }
   if (e.target.id !== "todo-form") return;
   e.preventDefault();
   const f = e.target;
@@ -188,7 +325,7 @@ async function onSubmit(e) {
     person_id: view.sheet.person ?? t.person_id };
   const res = await act(() => request("PATCH", `/api/todos/${t.id}`, body), "Saved");
   if (res === true) { view.sheet = null; await loadToday().catch(() => {}); render(); }
-  else todoFail(res);
+  else formFail("todo-err", res);
 }
 
 function tick() {
@@ -206,6 +343,8 @@ export function startPhone(el) {
   root = el;
   root.addEventListener("click", onClick);
   root.addEventListener("submit", onSubmit);
+  root.addEventListener("input", onInput);
+  root.addEventListener("change", onInput);
   onChange(rerenderUnlessEditing);
   render();
   startPolling({ alwaysOn: false });
