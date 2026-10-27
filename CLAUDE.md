@@ -49,13 +49,16 @@ Rule one: **family data stays in the house.**
 - Never use the browser Web Speech API. Mic needs HTTPS: `https://home-ai.tailfa3a6f.ts.net:8082` (`tailscale serve`); it works once `tailscale serve` is set up on home-ai.
 - Accepted risk: calendar titles from outside invites reach the House (bounded by Undo and House-only event edits).
 - `/api/talk/*` is reachable by anyone who can reach port 8081 (tailnet/LAN): same trust model as Part 1.
+- Open WebUI setup the House needs: the Kitchen account must have read access to the House model **and** to its
+  base model `qwen3.5:9b` (an unregistered base model is admin-only: log says `base_model_unregistered`).
+- We call Open WebUI with `stream: false` and `params.function_calling: "legacy"`. In native mode a non-streaming
+  caller gets the tool calls back unrun, and the House replies with nothing. Legacy mode runs one tool pass per turn.
 - Restart the container after creating or changing the kitchen secrets (they are read once at startup).
 - Fake mode (`DASHBOARD_FAKE=1`) has a fake whisper and a fake House ("add a todo for Ben to feed Milo").
 - Install scripts on home-ai: `sh ops/install-whisper.sh` (builds and runs whisper.cpp); `OWUI_ADMIN_KEY=… sh ops/install-house-tools.sh` (updates House tools).
 
 ## Known open items
-- calendar-api returns `502 Couldn't reach iCloud calendars: AuthorizationError`. The fix lives in household-ai (Bob).
-  Until then `calendar_ok` is `false` and the page shows `no calendar data yet`. See the spec, "Known issue".
+- None. (The calendar-api iCloud 502 was fixed in household-ai on 2026-10-27.)
 
 ## Coming next
 - Part 3: photo slideshow from a shared Apple Photos album synced on home-ai.
