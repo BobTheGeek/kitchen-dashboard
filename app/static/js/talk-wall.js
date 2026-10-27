@@ -29,18 +29,31 @@ export function initTalkWall(stageEl, dashEl) {
 export async function openTalk({ context = null, night = false, typing = false } = {}) {
   if (t) return;
   t = { mode: "starting", text: "", typed: "", shift: false, reply: "", changes: [], night, err: "", errKind: "",
-        bars: new Array(16).fill(0.25), id: null, rec: null, closeTimer: null };
+        bars: new Array(16).fill(0.25), context, id: null, rec: null, closeTimer: null };
   dash.classList.add("dimmed");
   el.hidden = false;
   draw();
-  try {
-    t.id = (await talkApi.start(context)).id;
-  } catch (err) {
-    return fail(errorText(err), "start");
-  }
+  if (!(await ensureSession())) return;
   if (typing) return setMode("typing");
   if (!micAvailable()) return setMode("nomic");
   listen();
+}
+
+// Starts the talk session if it is not running yet (the first start can fail). Shows the error and
+// returns false if it still fails, or if the panel was closed meanwhile.
+async function ensureSession() {
+  const cur = t;
+  if (!cur) return false;
+  if (cur.id) return true;
+  try {
+    const id = (await talkApi.start(cur.context)).id;
+    if (t !== cur) { talkApi.end(id); return false; }
+    cur.id = id;
+    return true;
+  } catch (err) {
+    if (t === cur) fail(errorText(err), "start");
+    return false;
+  }
 }
 
 function setMode(mode) { if (t) { t.mode = mode; draw(); } }
@@ -49,13 +62,14 @@ async function listen() {
   clearTimeout(t.closeTimer);
   t.text = "";
   setMode("listening");
+  if (!(await ensureSession())) return;
+  const cur = t;
   const rec = new Recorder({ onLevel: level, onSilence: () => finishListening() });
-  t.rec = rec;
+  cur.rec = rec;
   try {
     await rec.start();
   } catch {
-    t.rec = null;
-    setMode("nomic");
+    if (t === cur) { cur.rec = null; setMode("nomic"); }
   }
 }
 
@@ -83,6 +97,7 @@ async function send(text) {
   const cur = t;
   cur.text = text;
   setMode("thinking");
+  if (!(await ensureSession())) return;
   try {
     const res = await talkApi.message(cur.id, text);
     if (t !== cur) return;
@@ -196,13 +211,19 @@ async function onClick(e) {
   const b = e.target.closest("[data-t]");
   if (!b || !t) return;
   clearTimeout(t.closeTimer);
+  await act(b);
+  // Any touch that leaves the panel on the answer (e.g. Undo) restarts the idle auto-close.
+  if (t?.mode === "answer") { clearTimeout(t.closeTimer); t.closeTimer = setTimeout(() => close(), AUTO_CLOSE_MS); }
+}
+
+async function act(b) {
   const a = b.dataset.t;
   if (a === "stop" || a === "close" || a === "never") return close();
   if (a === "cancel") return close({ cancelled: true });
   if (a === "type") { t.rec?.cancel(); t.rec = null; return setMode("typing"); }
   if (a === "voice") return micAvailable() ? listen() : setMode("nomic");
   if (a === "again" || a === "more") return listen();
-  if (a === "retry") return t.errKind === "house" && t.text ? send(t.text) : listen();
+  if (a === "retry") return (t.errKind === "house" || t.errKind === "start") && t.text ? send(t.text) : listen();
   if (a === "undo-all") { for (const c of t.changes.filter((x) => x.undoable && !x.undone)) await undoCard(c.id); return; }
   if (a === "undo") return undoCard(Number(b.dataset.id));
   if (a === "key") return typeKey(b.dataset.k);
