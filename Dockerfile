@@ -10,8 +10,9 @@ COPY fixtures ./fixtures
 FROM base AS test
 COPY requirements-dev.txt pyproject.toml ./
 COPY tests ./tests
+COPY house_tools ./house_tools
 RUN pip install --no-cache-dir --root-user-action=ignore --disable-pip-version-check -r requirements-dev.txt \
- && ruff check app tests && pytest -q
+ && ruff check app tests house_tools && pytest -q
 
 FROM base
 ARG APP_VERSION=dev
