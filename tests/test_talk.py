@@ -17,6 +17,7 @@ def test_clean_transcript_and_reply():
     assert talk.clean_transcript(" [BLANK_AUDIO] ") == ""
     assert talk.clean_transcript("(music) Add a todo  for Ben.") == "Add a todo for Ben."
     assert talk.clean_reply("<think>hmm</think>\nDone, added it.") == "Done, added it."
+    assert talk.clean_reply("Ben has nothing today [1]. Bob has two [2][3].") == "Ben has nothing today. Bob has two."
 
 
 def test_sessions_expire():
@@ -71,6 +72,7 @@ def test_openwebui_client_request(monkeypatch):
     reply = talk.OpenWebUIClient("http://owui:8080", "k3y").chat([{"role": "user", "content": "hi"}], "s9")
     assert reply == "Hi" and seen["auth"] == "Bearer k3y"
     assert seen["body"]["model"] == "house" and seen["body"]["session_id"] == "s9" and seen["body"]["stream"] is False
+    assert seen["body"]["params"] == {"function_calling": "legacy"}
     assert seen["body"]["tool_ids"] == ["household_dates", "household_calendar", "household_todos"]
 
 

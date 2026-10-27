@@ -25,7 +25,9 @@ def clean_transcript(text: str) -> str:
 
 
 def clean_reply(text: str) -> str:
-    return re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
+    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
+    # Legacy tool mode cites tool results as [1], [2]; they mean nothing on the wall.
+    return re.sub(r"\s*\[\d+\]", "", text).strip()
 
 
 def _multipart(boundary: str, fields: list[tuple[str, str | None, bytes]]) -> bytes:
@@ -71,7 +73,9 @@ class OpenWebUIClient:
 
     def chat(self, messages: list[dict], session_id: str) -> str:
         body = {"model": self.model, "messages": messages, "tool_ids": TOOL_IDS, "session_id": session_id,
-                "stream": False}
+                # Without streaming, Open WebUI only runs tools itself in legacy mode;
+                # native mode hands the tool calls back to us unrun.
+                "stream": False, "params": {"function_calling": "legacy"}}
         req = urllib.request.Request(f"{self.url}/api/chat/completions", data=json.dumps(body).encode(),
                                      method="POST", headers={"Content-Type": "application/json",
                                                              "Authorization": f"Bearer {self.key}"})
