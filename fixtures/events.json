@@ -1,0 +1,20 @@
+{
+  "_note": "Fake calendar-api data for DASHBOARD_FAKE=1. offset = days from today. house = made by House (deletable).",
+  "events": [
+    {"calendar": "School", "title": "Soccer practice", "offset": 0, "time": "17:30", "minutes": 90},
+    {"calendar": "Family", "title": "Dinner with the Garcias", "offset": 0, "time": "19:00", "minutes": 120,
+     "location": "Garcia house"},
+    {"calendar": "Bob work", "title": "Standup", "offset": 1, "time": "09:00", "minutes": 15},
+    {"calendar": "School", "title": "Piano", "offset": 2, "time": "16:00", "minutes": 45},
+    {"calendar": "Family", "title": "Dentist · Ben", "offset": 3, "time": "16:00", "minutes": 45,
+     "location": "Dr. Osei, 14 Mill Lane", "house": true},
+    {"calendar": "Belen", "title": "Yoga", "offset": 4, "time": "18:30", "minutes": 60},
+    {"calendar": "Family", "title": "Pizza night", "offset": 4, "all_day": true},
+    {"calendar": "School", "title": "Soccer match", "offset": 5, "time": "10:00", "minutes": 90},
+    {"calendar": "Bob work", "title": "Lunch with Sam", "offset": 5, "time": "13:00", "minutes": 60},
+    {"calendar": "Belen", "title": "Market", "offset": 5, "time": "15:00", "minutes": 60},
+    {"calendar": "Family", "title": "Carve pumpkins", "offset": 5, "time": "17:00", "minutes": 60},
+    {"calendar": "Family", "title": "Trick or treat", "offset": 5, "time": "18:00", "minutes": 120},
+    {"calendar": "Family", "title": "Grandma visits", "offset": 6, "all_day": true}
+  ]
+}
