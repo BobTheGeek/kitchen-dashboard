@@ -1,0 +1,22 @@
+# Runs on home-ai next to the household-ai stack; joins its network to reach calendar-api.
+services:
+  kitchen-dashboard:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: household/kitchen-dashboard:${APP_VERSION:-dev}
+    container_name: kitchen-dashboard
+    ports: ["8081:8000"]
+    environment:
+      CALENDAR_API: http://calendar-api:8000
+      DASHBOARD_DB: /data/dashboard.db
+    volumes:
+      - ${HOME}/household-ai/data/dashboard:/data
+    networks: [household]
+    restart: unless-stopped
+
+networks:
+  household:
+    external: true
+    name: household-ai_default
