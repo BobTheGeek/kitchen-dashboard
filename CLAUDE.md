@@ -38,6 +38,18 @@ Rule one: **family data stays in the house.**
 - Ask Bob before touching household-ai, Tailscale rules, kiosk config, or what family data the screen shows.
 - `main` is production. Branch + PR for anything bigger than a small tweak.
 
+## Talk to the house (Part 2)
+- Spec: `docs/superpowers/specs/2026-10-27-kitchen-dashboard-part2-talk-design.md`.
+- Code: `app/talk.py` (clients, sessions, `TalkService`), `app/api.py` (`/api/talk/*`). Page: `app/static/js/talk.js` (recorder, shared API), `talk-wall.js` (kitchen panel), `talk-phone.js` (phone thread).
+- Flow: page records 16 kHz WAV → `/api/talk/listen` → whisper.cpp (`WHISPER_URL`, launchd `com.household.whisper` on home-ai)
+  → `/api/talk/message` → Open WebUI House (`OPENWEBUI_URL`, Kitchen account key) → House tools (`house_tools/`)
+  → `/api/house/*` (token) → calendar-api / TODOs, each write logged in `house_actions` for change cards + Undo.
+- whisper.cpp is pinned to the tag in `ops/install-whisper.sh` (`TAG`, currently v1.9.5).
+- Secrets: `~/household-ai/secrets/kitchen/{openwebui_key,house_token}` → `/run/kitchen-secrets` (read-only). Never log or return them.
+- Never use the browser Web Speech API. Mic needs HTTPS: `https://home-ai.tailfa3a6f.ts.net:8082` (`tailscale serve`).
+- Fake mode (`DASHBOARD_FAKE=1`) has a fake whisper and a fake House ("add a todo for Ben to feed Milo").
+- Install scripts on home-ai: `sh ops/install-whisper.sh` (builds and runs whisper.cpp); `OWUI_ADMIN_KEY=… sh ops/install-house-tools.sh` (updates House tools).
+
 ## Known open items
 - calendar-api returns `502 Couldn't reach iCloud calendars: AuthorizationError`. The fix lives in household-ai (Bob).
   Until then `calendar_ok` is `false` and the page shows `no calendar data yet`. See the spec, "Known issue".
