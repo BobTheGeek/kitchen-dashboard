@@ -46,7 +46,10 @@ Rule one: **family data stays in the house.**
   → `/api/house/*` (token) → calendar-api / TODOs, each write logged in `house_actions` for change cards + Undo.
 - whisper.cpp is pinned to the tag in `ops/install-whisper.sh` (`TAG`, currently v1.9.5).
 - Secrets: `~/household-ai/secrets/kitchen/{openwebui_key,house_token}` → `/run/kitchen-secrets` (read-only). Never log or return them.
-- Never use the browser Web Speech API. Mic needs HTTPS: `https://home-ai.tailfa3a6f.ts.net:8082` (`tailscale serve`).
+- Never use the browser Web Speech API. Mic needs HTTPS: `https://home-ai.tailfa3a6f.ts.net:8082` (`tailscale serve`); it works once `tailscale serve` is set up on home-ai.
+- Accepted risk: calendar titles from outside invites reach the House (bounded by Undo and House-only event edits).
+- `/api/talk/*` is reachable by anyone who can reach port 8081 (tailnet/LAN): same trust model as Part 1.
+- Restart the container after creating or changing the kitchen secrets (they are read once at startup).
 - Fake mode (`DASHBOARD_FAKE=1`) has a fake whisper and a fake House ("add a todo for Ben to feed Milo").
 - Install scripts on home-ai: `sh ops/install-whisper.sh` (builds and runs whisper.cpp); `OWUI_ADMIN_KEY=… sh ops/install-house-tools.sh` (updates House tools).
 
@@ -55,5 +58,4 @@ Rule one: **family data stays in the house.**
   Until then `calendar_ok` is `false` and the page shows `no calendar data yet`. See the spec, "Known issue".
 
 ## Coming next
-- Part 2: Talk to the house (voice/chat panel, local speech-to-text, House AI tools, HTTPS on the kiosk).
 - Part 3: photo slideshow from a shared Apple Photos album synced on home-ai.

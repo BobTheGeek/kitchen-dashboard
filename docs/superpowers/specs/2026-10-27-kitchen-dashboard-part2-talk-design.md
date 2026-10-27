@@ -65,8 +65,8 @@ kitchen-dashboard (FastAPI)
 ### 3.2 Configuration (env, compose)
 
 - `OPENWEBUI_URL=http://open-webui:8080` (same Docker network).
-- `OPENWEBUI_KEY_FILE=/run/secrets/kitchen_openwebui_key` — mounted read-only from `~/household-ai/secrets/kitchen_openwebui_key`.
-- `HOUSE_TOKEN_FILE=/run/secrets/house_tools_token` — mounted read-only from `~/household-ai/secrets/house_tools_token`.
+- `OPENWEBUI_KEY_FILE=/run/kitchen-secrets/openwebui_key` — mounted read-only from `~/household-ai/secrets/kitchen/openwebui_key`.
+- `HOUSE_TOKEN_FILE=/run/kitchen-secrets/house_token` — mounted read-only from `~/household-ai/secrets/kitchen/house_token`.
 - `WHISPER_URL=http://host.docker.internal:8178`. The build must confirm the container reaches the host's loopback service through OrbStack; if not, whisper listens on the Docker bridge address instead.
 - Secrets are never committed, never logged, never sent to the browser.
 
@@ -80,7 +80,7 @@ kitchen-dashboard (FastAPI)
 
 Source lives in this repo (`house_tools/household_calendar.py`, `house_tools/household_todos.py`) with tests. `ops/install-house-tools.sh` installs or updates them in Open WebUI through its admin API and copies them to `~/household-ai/tools/`. Each tool has Valves (admin settings in Open WebUI) for `dashboard_url` and `token`.
 
-Every tool call sends `Authorization: Bearer <token>` and `X-Talk-Session: <__metadata__.chat_id>` when present.
+Every tool call sends `Authorization: Bearer <token>` and `X-Talk-Session: <__metadata__["session_id"]>` when present.
 
 **household_calendar**
 - `list_calendars()` — names and purposes.
@@ -90,7 +90,7 @@ Every tool call sends `Authorization: Bearer <token>` and `X-Talk-Session: <__me
 - `delete_event(uid)` — House-made events only.
 
 **household_todos**
-- `list_todos(person, date?)` — today's list by default.
+- `list_todos(person)` — today's list only (`/api/house/todos` takes no date).
 - `add_todo(person, text, date?, time?)` — date defaults to today; person by name (Bob, Belen, Ben).
 - `complete_todo(todo_id)` / `reopen_todo(todo_id)`
 - `delete_todo(todo_id)`
@@ -106,7 +106,7 @@ Tool return strings are short, factual sentences the model can repeat ("Added 'D
 | POST | `/api/house/events` | calendar-api `POST /events` | delete the new uid |
 | PATCH | `/api/house/events/{uid}` | reads the event first, then `PATCH` | PATCH back to the old fields |
 | DELETE | `/api/house/events/{uid}` | reads the event first, then `DELETE` | re-create it (new uid) |
-| GET | `/api/house/todos?person&date` | `todos.today_view` for that person | – |
+| GET | `/api/house/todos?person` (today only) | `todos.today_view` for that person | – |
 | POST | `/api/house/todos` | `todos.create(created_by="house")` | delete it |
 | POST | `/api/house/todos/{id}/done` and `/reopen` | `todos.update(done=…)` | the opposite |
 | DELETE | `/api/house/todos/{id}` | reads it first, then deletes | re-create it |
@@ -130,8 +130,8 @@ calendar-api refusals are returned as-is with their message. After any event wri
 
 `/api/talk/message`:
 1. Appends the user text to the session.
-2. Calls Open WebUI with `model: "house"`, the session's messages, `tool_ids: ["household_dates", "household_calendar", "household_todos"]`, `chat_id: <session id>`, non-streaming, timeout 60 s. A short system message adds: today's date and time in Chicago, the family (Bob, Belen, Ben), "act directly, then say what you did in one or two sentences", and, when the session has a context event, that event's details.
-3. Collects `house_actions` rows for this session created during the call. **Fallback** if `chat_id` does not reach the tools: rows from requests carrying no session header, created during this call, are attributed to it (the build confirms which path works).
+2. Calls Open WebUI with `model: "house"`, the session's messages, `tool_ids: ["household_dates", "household_calendar", "household_todos"]`, `session_id: <session id>`, non-streaming, timeout 60 s. A short system message adds: today's date and time in Chicago, the family (Bob, Belen, Ben), "act directly, then say what you did in one or two sentences", and, when the session has a context event, that event's details.
+3. Collects `house_actions` rows for this session created during the call. **Fallback** if `session_id` does not reach the tools: rows from requests carrying no session header, created during this call, are attributed to it (the build confirms which path works).
 4. Returns `reply` and the changes.
 
 The open session and history live only in dashboard memory; Open WebUI is not asked to save the chat.
@@ -169,7 +169,7 @@ All sizes, colors and copy follow `docs/design/README.md` ("Talk to the house"),
 - **House tools:** unit tests with a fake dashboard (requests, headers, Valves, error strings). Tests run in this repo's CI.
 - **Fake mode:** `DASHBOARD_FAKE=1` uses the fake whisper and fake House so the whole panel works on a laptop.
 - **Browser checks** (ego-browser) for each screen against the design cards.
-- **Live:** a real end-to-end test on the kiosk and on a phone; confirm OrbStack host access to whisper and that `chat_id` reaches the tools.
+- **Live:** a real end-to-end test on the kiosk and on a phone; confirm OrbStack host access to whisper and that `session_id` reaches the tools.
 
 ## 7. Rollout
 
