@@ -2,7 +2,9 @@
 import { loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
 import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
 
-let stage, dash;
+let stage, dash, nightEl;
+let awakeUntil = 0;
+const WAKE_MS = 2 * 60_000;
 
 function fitStage() {
   const s = Math.min(window.innerWidth / 3000, window.innerHeight / 2000);
@@ -189,14 +191,47 @@ async function removeEvent(uid) {
   loadWeek().catch(() => {});
 }
 
+export const isNight = (d) => { const h = chicagoParts(d).hour; return h >= 22 || h < 6; };
+
+function renderNight(now) {
+  const st = status();
+  const tomorrow = state.week?.days[1]?.events[0];
+  const open = (state.today?.people ?? []).filter((p) => p.left > 0);
+  nightEl.innerHTML =
+    `<div class="top"><div>NIGHT · UNTIL 6:00 AM</div><div class="st ${st.tone === "amber" ? "amber" : ""}">` +
+    `<span class="dot"></span>${esc(st.text)}</div></div>` +
+    `<div class="mid"><div class="big-clock">${clockText(now)}</div><div class="big-date">${dateText(now)}</div></div>` +
+    `<div class="bottom"><div class="tmrw">` + (tomorrow
+      ? `<div class="lbl">TOMORROW</div><div class="tmrw-ev"><div class="bar" style="background:${esc(tomorrow.color)}"></div>` +
+        `<div><div class="tmrw-title">${esc(tomorrow.title)}</div><div class="tmrw-meta">${esc(tomorrow.time_label.toUpperCase())}` +
+        ` · ${esc(tomorrow.calendar)}</div></div></div>`
+      : `<div class="lbl">TOMORROW</div><div class="tmrw-meta">Nothing planned</div>`) +
+    `</div><div class="open">` + (open.length
+      ? `<div class="lbl">STILL OPEN TODAY</div><div class="pills">${open.map((p) =>
+          `<div class="pill"><span class="ph"></span>${esc(p.name)} · ${p.left}</div>`).join("")}</div>` : "") +
+    `</div></div><div class="hint">TAP ANYWHERE FOR THE FULL DASHBOARD</div>`;
+}
+
+function updateNight(now) {
+  const on = isNight(now) && Date.now() > awakeUntil;
+  if (on) { closeSheet(); renderNight(now); }
+  nightEl.classList.toggle("on", on);
+}
+
 export function startKitchen(root) {
   root.innerHTML = `<div class="stage" id="stage"><div class="dash" id="dash"></div>` +
-    `<div id="sheet" hidden></div></div>`;
+    `<div id="sheet" hidden></div><div class="night" id="night"></div></div>`;
   stage = document.getElementById("stage");
   dash = document.getElementById("dash");
   sheetEl = document.getElementById("sheet");
+  nightEl = document.getElementById("night");
   fitStage();
   window.addEventListener("resize", fitStage);
+  nightEl.addEventListener("click", (e) => {
+    e.stopPropagation();  // the waking tap never reaches the dashboard
+    awakeUntil = Date.now() + WAKE_MS;
+    updateNight(new Date());
+  });
   stage.addEventListener("click", (e) => {
     const t = e.target.closest("[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove]");
     if (!t) return;
@@ -211,10 +246,12 @@ export function startKitchen(root) {
   });
   onChange(render);
   render();
+  updateNight(new Date());
   startPolling({ alwaysOn: true });
   let day = chicagoParts(new Date()).iso;
   setInterval(() => {
     const now = tickClock();
+    updateNight(now);
     const today = chicagoParts(now).iso;
     if (today !== day) { day = today; Promise.all([loadWeek(), loadToday()]).catch(() => {}); }  // midnight
   }, 1000);

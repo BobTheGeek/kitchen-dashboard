@@ -139,3 +139,30 @@ body.is-kitchen { overflow: hidden; }
   width: 100%; text-align: left; }
 .day-row .t { width: 220px; font: 600 36px var(--mono); color: var(--muted); flex: none; }
 .day-row .pill { flex: 1; border-radius: 999px; padding: 20px 36px; font: 600 44px var(--sans); }
+
+/* Night mode (6a), 10 PM - 6 AM */
+.night { position: absolute; inset: 0; background: #0f0e12; color: #d9d3c7; padding: 72px 80px; display: flex;
+  flex-direction: column; justify-content: space-between; opacity: 0; pointer-events: none; transition: opacity 1s; }
+.night.on { opacity: 1; pointer-events: auto; }
+.night .top { display: flex; justify-content: space-between; align-items: flex-start; font: 600 32px var(--mono);
+  letter-spacing: .12em; color: #6f6a7a; }
+.night .top .st { display: flex; align-items: center; gap: 16px; font-weight: 400; letter-spacing: 0; }
+.night .top .dot { width: 18px; height: 18px; border-radius: 50%; background: #3a7d55; }
+.night .top .st.amber .dot { background: var(--warning); }
+.night .mid { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.night .big-clock { font: 600 420px/1 var(--sans); letter-spacing: -.04em; color: #e8e2d6; font-variant-numeric: tabular-nums; }
+.night .big-date { font: 44px var(--mono); color: #8a8494; letter-spacing: .08em; }
+.night .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: end; }
+.night .lbl { font: 600 32px var(--mono); letter-spacing: .12em; color: #6f6a7a; }
+.night .tmrw { display: flex; flex-direction: column; gap: 20px; }
+.night .tmrw-ev { display: flex; align-items: center; gap: 28px; }
+.night .bar { width: 16px; height: 76px; border-radius: 8px; opacity: .7; }
+.night .tmrw-title { font: 600 56px/1.1 var(--sans); color: #e8e2d6; }
+.night .tmrw-meta { font: 36px var(--mono); color: #8a8494; margin-top: 10px; }
+.night .open { display: flex; flex-direction: column; align-items: flex-end; gap: 20px; }
+.night .pills { display: flex; gap: 16px; }
+.night .pill { display: flex; align-items: center; gap: 16px; border: 3px solid #2a2832; border-radius: 999px;
+  padding: 16px 36px 16px 16px; font: 40px var(--sans); color: #d9d3c7; }
+.night .pill .ph { width: 64px; height: 64px; border-radius: 50%; background: #2a2832; }
+.night .hint { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); font: 32px var(--mono);
+  color: #4a4752; letter-spacing: .08em; }
