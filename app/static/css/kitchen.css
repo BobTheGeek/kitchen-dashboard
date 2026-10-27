@@ -52,12 +52,12 @@ body.is-kitchen { overflow: hidden; }
 .people { display: grid; grid-template-columns: repeat(3, 1fr) 120px; gap: 28px; min-height: 0; }
 .person { background: var(--surface); border-radius: 48px; padding: 32px; display: flex; flex-direction: column; gap: 14px;
   min-height: 0; overflow: hidden; position: relative; }
-.person-head { display: flex; align-items: center; gap: 20px; margin-bottom: 8px; }
+.person-head { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; margin-bottom: 8px; }
 .avatar { width: 100px; height: 100px; border-radius: 50%; background: var(--photo); display: flex; align-items: center;
   justify-content: center; font: 600 40px var(--mono); color: var(--muted); flex: none; }
-.person-head .name { font: 600 52px/1 var(--sans); flex: 1; }
-.person-head .count { font: 26px var(--mono); color: var(--muted); white-space: nowrap; }
-.person-head .count.overdue { color: var(--danger); }
+.person-head .name { font: 600 52px/1 var(--sans); flex: 1; min-width: 0; }
+.person-head .count { font: 30px var(--mono); color: var(--muted); white-space: nowrap; }
+.person-head .count.overdue { color: var(--danger); flex-basis: 100%; }
 .todo { display: flex; align-items: center; gap: 20px; min-height: 100px; text-align: left; width: 100%; }
 .ring { width: 60px; height: 60px; border-radius: 50%; border: 5px solid var(--ring); flex: none; display: flex;
   align-items: center; justify-content: center; transition: background .15s, border-color .15s; }
