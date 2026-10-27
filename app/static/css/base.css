@@ -1,0 +1,31 @@
+/* Tokens and shared pieces. Values come from docs/design/README.md. System fonts only. */
+:root {
+  --bg: #faf9f7; --surface: #fff; --surface-2: #f4f2f7; --divider: #f0eef4; --divider-2: #e6e3ee;
+  --dashed: #d9d5e3; --ink: #1c1b1f; --muted: #6b6875; --faint: #9995a3; --ring: #c9c4d6;
+  --accent: #6b45d9; --accent-soft: #efe9fb; --success: #2fb36a; --warning: #e9a23b; --warning-text: #b5742a;
+  --danger: #d2382f; --danger-tint: #fdf1f0;
+  --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+  --photo: repeating-linear-gradient(45deg, #e9e6f3 0 12px, #f5f3fa 12px 24px);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+body { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* CSS icons (no icon fonts). Sizes are set inline by ui.js. */
+.i-mic { position: relative; display: inline-block; }
+.i-mic b { position: absolute; display: block; }
+.i-check { display: inline-block; border-left: solid currentColor; border-bottom: solid currentColor;
+  transform: rotate(-45deg) translate(10%, -25%); }
+.i-x { position: relative; display: inline-block; }
+.i-x::before, .i-x::after { content: ""; position: absolute; left: 0; top: 50%; width: 100%; height: var(--t);
+  margin-top: calc(var(--t) / -2); background: var(--c); border-radius: 4px; }
+.i-x::before { transform: rotate(45deg); }
+.i-x::after { transform: rotate(-45deg); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); z-index: 50; background: var(--ink); color: #fff;
+  border-radius: 999px; display: flex; align-items: center; box-shadow: 0 30px 80px rgba(0,0,0,.3);
+  animation: toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 20px); } }
