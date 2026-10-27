@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
-from app import actions, clock, settings, todos
+from app import actions, clock, photos, settings, todos
 from app import store as st
 from app.calendar import CalendarService, FixtureSource, HttpSource, build_week
 from app.house import HouseOps
@@ -141,7 +141,7 @@ class QuietPolls(logging.Filter):
 
 
 def create_app(db_path: str | None = None, source=None, version: str | None = None, whisper=None, house=None,
-               house_token: str | None = None) -> FastAPI:
+               house_token: str | None = None, photos_dir: str | None = None) -> FastAPI:
     db_path = db_path or os.environ.get("DASHBOARD_DB", "/data/dashboard.db")
     version = version or os.environ.get("APP_VERSION", "dev")
     if source is None:
@@ -153,6 +153,9 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     cal = CalendarService(source, store)
     ops = HouseOps(cal)
     fake = os.environ.get("DASHBOARD_FAKE") == "1"
+    if photos_dir is None:
+        photos_dir = os.environ.get("PHOTOS_DIR") or (str(ROOT / "fixtures" / "photos") if fake else "")
+    photo_root = Path(photos_dir) if photos_dir else None
     if house_token is None:
         token = "dev-token" if fake else _read_secret("HOUSE_TOKEN_FILE")
     else:
@@ -394,6 +397,19 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
             raise HTTPException(409, message)
         cal.invalidate()
         return {"ok": True}
+
+    @app.get("/api/photos")
+    def get_photos():
+        return {"photos": photos.list_photos(photo_root), "active": photos.slideshow_hours(clock.now())}
+
+    @app.get("/photos/{name}")
+    def get_photo(name: str):
+        path = photos.photo_path(photo_root, name)
+        if path is None:
+            raise HTTPException(404, "No such photo")
+        # Each URL carries ?v=<mtime>, so a changed photo gets a new URL and the cache never goes stale.
+        return FileResponse(path, media_type="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
     @app.get("/")
     def index():

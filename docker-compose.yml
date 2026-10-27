@@ -15,9 +15,11 @@ services:
       OPENWEBUI_KEY_FILE: /run/kitchen-secrets/openwebui_key
       HOUSE_TOKEN_FILE: /run/kitchen-secrets/house_token
       WHISPER_URL: http://host.docker.internal:8178
+      PHOTOS_DIR: /photos
     volumes:
       - ${HOME}/household-ai/data/dashboard:/data
       - ${HOME}/household-ai/secrets/kitchen:/run/kitchen-secrets:ro   # only the kitchen's two secrets
+      - ${HOME}/household-ai/data/photos/kitchen:/photos:ro       # filled hourly by ops/photo-sync.sh
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks: [household]
