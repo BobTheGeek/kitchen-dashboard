@@ -53,3 +53,9 @@ def test_ink_for_light_and_dark():
 def test_presets():
     assert labels.PRESETS == ["#f2c230", "#e0702a", "#d2382f", "#e0457b",
                               "#6b45d9", "#2b5fd9", "#14a08a", "#2fb36a"]
+
+
+def test_chip_detail():
+    thu = date(2026, 10, 29)
+    assert labels.chip_detail(thu, at(16, 0, thu)) == "THU 29 · 4:00 PM"
+    assert labels.chip_detail(thu, None) == "THU 29"

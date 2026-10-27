@@ -47,6 +47,12 @@ def todo_time_label(hhmm: str | None) -> str | None:
     return clock_time(time(h, m))
 
 
+def chip_detail(d: date, at: datetime | time | None) -> str:
+    """Change-card line: 'THU 29 · 4:00 PM', or 'THU 29' with no time."""
+    head = f"{d.strftime('%a').upper()} {d.day}"
+    return head if at is None else f"{head} · {clock_time(at)}"
+
+
 def _channel(c: int) -> float:
     v = c / 255
     return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4

@@ -33,6 +33,20 @@ create table if not exists meta (
     key text primary key,
     value text not null
 );
+create table if not exists house_actions (
+    id integer primary key,
+    session_id text,
+    kind text not null,
+    verb text not null,
+    title text not null,
+    detail text not null,
+    ref text,
+    calendar text,
+    person text,
+    inverse text,
+    created_at text not null,
+    undone_at text
+);
 """
 
 
