@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from app import actions, clock, settings, todos
 from app import store as st
@@ -83,8 +83,18 @@ class HouseTodoIn(BaseModel):
     time: HHMM | None = None
 
 
+EVENT_KEYS = ("uid", "title", "when_label", "calendar")
+
+
 class TalkContext(BaseModel):
     event: dict[str, str] | None = None
+
+    @field_validator("event")
+    @classmethod
+    def _bound_event(cls, v):
+        if v is None:
+            return None
+        return {k: " ".join(str(v[k]).split())[:200] for k in EVENT_KEYS if k in v}
 
 
 class SessionIn(BaseModel):
@@ -105,8 +115,13 @@ def _fields(model: BaseModel) -> dict:
 
 def _read_secret(env_name: str) -> str:
     path = os.environ.get(env_name)
-    if path and Path(path).is_file():
-        return Path(path).read_text().strip()
+    if not path:
+        return ""
+    try:
+        if Path(path).is_file():
+            return Path(path).read_text().strip()
+    except OSError:
+        logging.getLogger("uvicorn.error").warning("Can't read the secret file for %s at %s", env_name, path)
     return ""
 
 

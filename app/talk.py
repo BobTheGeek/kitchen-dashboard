@@ -170,13 +170,18 @@ class TalkService:
         con = self.store.connect()
         try:
             since = actions.last_id(con)
+            with self.sessions._lock:
+                if s["busy"]:
+                    raise TalkError("Still working on the last one", 409)
+                s["busy"] = True
             s["messages"].append({"role": "user", "content": text})
-            s["busy"] = True
             try:
                 reply = self.house.chat([{"role": "system", "content": self.system_prompt(s)}] + s["messages"],
                                         session_id)
             except TalkError:
                 s["messages"].pop()
+                # Tools may have written before the House timed out: keep those changes attributable.
+                actions.claim_unattributed(con, session_id, since)
                 raise
             finally:
                 s["busy"] = False

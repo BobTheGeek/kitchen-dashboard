@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -115,3 +117,17 @@ def test_undo_twice_and_unknown(client):
     assert client.post(f"/api/talk/actions/{aid}/undo").json() == {"ok": True}
     assert client.post(f"/api/talk/actions/{aid}/undo").json() == {"ok": True}
     assert client.post("/api/talk/actions/999/undo").status_code == 409
+
+
+def test_unreadable_secret_does_not_stop_startup(tmp_path, src, freeze, monkeypatch):
+    if os.geteuid() == 0:
+        pytest.skip("root can read anything")
+    freeze("2026-10-27T09:00")
+    secret = tmp_path / "house_token"
+    secret.write_text("tok")
+    secret.chmod(0)
+    monkeypatch.setenv("HOUSE_TOKEN_FILE", str(secret))
+    monkeypatch.setenv("OPENWEBUI_KEY_FILE", str(secret))
+    c = TestClient(create_app(db_path=str(tmp_path / "u.db"), source=src, version="t"))
+    assert c.get("/api/house/calendars", headers=AUTH).status_code == 503
+    assert c.get("/api/version").status_code == 200
