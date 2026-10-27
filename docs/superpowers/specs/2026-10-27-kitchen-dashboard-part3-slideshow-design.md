@@ -89,7 +89,7 @@ Routes in `app/api.py`:
   Any name that fails the regex, or a file that does not exist → 404. Never follow paths outside `PHOTOS_DIR`.
 - No `PHOTOS_DIR` set → both act as an empty folder.
 
-Fake mode (`DASHBOARD_FAKE=1`): `PHOTOS_DIR` defaults to `tests/fixtures/photos/` with 3 small sample JPEGs
+Fake mode (`DASHBOARD_FAKE=1`): `PHOTOS_DIR` defaults to `fixtures/photos/` with 3 small sample JPEGs
 (one landscape, one portrait, one square), generated with no family content.
 
 ## 6. Page (kitchen only)
@@ -108,10 +108,10 @@ New module `app/static/js/slideshow.js`, used by `kitchen.js`. `phone.js` does n
 - **Overlay (7a):** bottom gradient; bottom-left clock 600/240 + date mono 40; bottom-right `NEXT UP` + frosted
   pill with the first item of the existing next-up data; top-right `TOUCH TO WAKE`; 12 px progress bar for
   time to the next photo. Clock and next-up reuse the page's existing data and formatters; no new server calls.
-- **Wake (7c):** a full-screen layer catches the touch (`pointerdown`, `preventDefault`, stop propagation),
-  so nothing under it is pressed. Photo dims and slides down while the dashboard fades up, 400 ms ease-out.
+- **Wake (7c):** the full-screen slideshow layer catches the tap (`click`, stop propagation, the same way night
+  mode does), so nothing under it is pressed. Photo dims and slides down while the dashboard fades up, 400 ms ease-out.
   The idle timer restarts.
-- **Stop by itself:** when `active` turns false (9 PM) or night mode starts, the slideshow ends with the same
+- **Stop by itself:** when `active` turns false (9 PM; seen at the next 10-minute list fetch) or night mode starts, the slideshow ends with the same
   wake animation.
 - **Kiosk reload on new version** works as today; the slideshow simply starts again after 5 idle minutes.
 
@@ -132,7 +132,7 @@ Sizes follow the Part 1 rules: nothing under 30 px on the 3000×2000 stage.
   `slideshow_hours` at 6:59, 7:00, 20:59, 21:00 Chicago, and across DST.
 - `tests/test_api.py`: `/api/photos` shape; `/photos/<name>` 200 with cache header; 404 for `../x.jpg`,
   `%2e%2e%2fx.jpg`, `x.png`, and a missing file; empty when `PHOTOS_DIR` is unset.
-- Page: check in fake mode at 3000×2000 with a short idle time (`?idle=5` query param, fake mode only):
+- Page: check in fake mode at 3000×2000 with a short idle time (`?idle=5` query param: idle seconds, for testing only):
   start, crossfade, portrait fit, wake consumes the touch, no slideshow with a sheet open.
 - Sync script: run once on home-ai; confirm `kitchen/` count matches the album's downloaded photos;
   remove one photo from the album and confirm it leaves `kitchen/` after the next run.
