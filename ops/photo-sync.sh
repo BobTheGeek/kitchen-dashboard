@@ -23,13 +23,25 @@ if ! osxphotos export "$EXPORT" --album "$ALBUM" --only-photos --skip-live --con
   exit 1
 fi
 
+# An empty export (album renamed, Photos signed out) must not wipe the wall.
+if [ -z "$(find "$EXPORT" -maxdepth 1 -name '*.jpg' | head -1)" ] \
+    && [ -n "$(find "$OUT" -maxdepth 1 -name '*.jpg' ! -name '.*' | head -1)" ]; then
+  log "export empty, keeping existing photos"
+  exit 1
+fi
+
 added=0 updated=0 removed=0
 for src in "$EXPORT"/*.jpg; do
   [ -e "$src" ] || continue
   dst="$OUT/$(basename "$src")"
   if [ -e "$dst" ] && [ ! "$src" -nt "$dst" ]; then continue; fi
   # Resize into a hidden temp name (the server ignores it), then rename: the wall never sees half a file.
-  if ! sips -Z 3000 -s format jpeg "$src" --out "$OUT/.tmp.jpg" >/dev/null 2>&1; then
+  # sips -Z also enlarges small photos, so only shrink the ones longer than 3000 px.
+  w=$(sips -g pixelWidth "$src" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+  h=$(sips -g pixelHeight "$src" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+  if [ "${w:-0}" -gt 3000 ] || [ "${h:-0}" -gt 3000 ]; then resize="-Z 3000"; else resize=""; fi
+  # shellcheck disable=SC2086
+  if ! sips $resize -s format jpeg "$src" --out "$OUT/.tmp.jpg" >/dev/null 2>&1; then
     log "skipped $(basename "$src"): sips failed"
     continue
   fi
