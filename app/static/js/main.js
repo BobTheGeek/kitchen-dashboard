@@ -29,3 +29,27 @@ async function checkVersion() {
 }
 checkVersion();
 setInterval(checkVersion, 60_000);
+
+// TEMPORARY touch diagnostics for the kiosk: logs only event types, positions and class names. Remove after testing.
+if (!isPhone) {
+  const counts = {};
+  let last = "";
+  const send = (message) => fetch("/api/client-error", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: `TOUCHDEBUG ${message}`, where: "kiosk" }) }).catch(() => {});
+  for (const type of ["touchstart", "touchend", "touchcancel", "pointerdown", "pointerup", "pointercancel", "mousedown", "click"]) {
+    window.addEventListener(type, (e) => {
+      counts[type] = (counts[type] ?? 0) + 1;
+      const p = e.changedTouches?.[0] ?? e;
+      const hit = document.elementFromPoint(p.clientX, p.clientY);
+      last = `${type} ${e.pointerType ?? ""} ${Math.round(p.clientX)},${Math.round(p.clientY)} ` +
+        `on .${String(hit?.className ?? "none").slice(0, 40)} trusted=${e.isTrusted}`;
+    }, { capture: true, passive: true });
+  }
+  send(`load touchPoints=${navigator.maxTouchPoints} coarse=${matchMedia("(pointer: coarse)").matches} ` +
+    `size=${window.innerWidth}x${window.innerHeight} dpr=${window.devicePixelRatio} focus=${document.hasFocus()}`);
+  setInterval(() => {
+    if (!Object.keys(counts).length) return;
+    send(`${JSON.stringify(counts)} last: ${last}`);
+    for (const k of Object.keys(counts)) delete counts[k];
+  }, 2000);
+}
