@@ -78,10 +78,10 @@ function eventSheet() {
   const s = view.sheet;
   const ev = findEvent(s.uid);
   if (!ev) return "";
-  const who = (state.today?.people ?? []).filter((p) => p.name === ev.calendar);
+  const who = ev.who ?? [];
   const rows = `<div class="p-row"><span class="k">WHEN</span><span>${esc(ev.when_label)}</span></div>` +
     (ev.location ? `<div class="p-row"><span class="k">WHERE</span><span>${esc(ev.location)}</span></div>` : "") +
-    (who.length ? `<div class="p-row"><span class="k">WHO</span><span>${who.map((p) => esc(p.name)).join(", ")}</span></div>` : "") +
+    (who.length ? `<div class="p-row"><span class="k">WHO</span><span>${who.map(esc).join(", ")}</span></div>` : "") +
     `<div class="p-row"><span class="k">CAL</span><span><i class="p-dotc" style="background:${esc(ev.color)}"></i>` +
     `${esc(ev.calendar)}</span></div>`;
   let actions;

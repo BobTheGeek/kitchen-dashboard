@@ -1,4 +1,6 @@
 """Text the page shows, built on the server so pytest can check it. Pure functions only."""
+import re
+from collections.abc import Iterable
 from datetime import date, datetime, time
 
 PRESETS = ["#f2c230", "#e0702a", "#d2382f", "#e0457b", "#6b45d9", "#2b5fd9", "#14a08a", "#2fb36a"]
@@ -51,6 +53,21 @@ def chip_detail(d: date, at: datetime | time | None) -> str:
     """Change-card line: 'THU 29 · 4:00 PM', or 'THU 29' with no time."""
     head = f"{d.strftime('%a').upper()} {d.day}"
     return head if at is None else f"{head} · {clock_time(at)}"
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[^\W\d_]+", text.lower())
+
+
+def who_for(calendar: str, title: str, people: Iterable[str]) -> list[str]:
+    """Who an event is for: a person's name starts a word of the calendar ("Benny Time") or is a word of the title."""
+    cal_words, title_words = _words(calendar), set(_words(title))
+    out = []
+    for name in people:
+        first = (_words(name) or [""])[0]
+        if first and (first in title_words or any(w.startswith(first) for w in cal_words)):
+            out.append(name)
+    return out
 
 
 def _channel(c: int) -> float:

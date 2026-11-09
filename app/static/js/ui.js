@@ -21,6 +21,15 @@ export function chicagoParts(d) {
   return { iso: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
 }
 
+// Who an event is for, in words: all three names start with B, so an initial would tell nobody apart.
+export const whoText = (ev) => (ev.who?.length ? ev.who.join(" + ") : ev.calendar);
+
+// "5:30 PM" -> ["5:30", "PM"], for showing the digits large.
+export function splitTime(label) {
+  const m = /^(.*) ([AP]M)$/.exec(label);
+  return m ? [m[1], m[2]] : [label, ""];
+}
+
 export const chipStyle = (ev) => `style="background:${esc(ev.color)};color:${esc(ev.ink)}"`;
 
 export const icons = {

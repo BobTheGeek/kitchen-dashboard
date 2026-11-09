@@ -3,6 +3,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -236,7 +237,8 @@ def fields_from_event(ev: dict) -> dict:
     return out
 
 
-def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: int = 7) -> dict:
+def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: int = 7,
+               people: Iterable[str] = ()) -> dict:
     today = now.date()
     by_day: dict[date, list[tuple]] = {today + timedelta(days=i): [] for i in range(days)}
     upcoming = []
@@ -255,6 +257,7 @@ def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: 
             "time_label": labels.time_label(start), "relative_label": labels.relative_label(d, start, today),
             "when_label": labels.when_label(d, start, end), "color": color, "ink": labels.ink_for(color),
             "can_delete": bool(raw.get("added_by_house")), "is_today": d == today,
+            "who": labels.who_for(raw["calendar"], raw["title"], people), "day_word": labels.day_word(d, today),
         }
         sort_key = (d, 0 if all_day else 1, start or now, raw["title"])
         by_day[d].append((sort_key, item))
@@ -266,5 +269,9 @@ def build_week(events: list[dict], now: datetime, colors: dict[str, str], days: 
         day_list.append({"date": d.isoformat(), "dow": d.strftime("%a").upper(), "dow_long": d.strftime("%A").upper(),
                          "day": d.day, "month": d.strftime("%b").upper(), "is_today": d == today,
                          "events": ordered, "more": max(0, len(ordered) - MAX_CHIPS)})
-    nxt = [item for _, item in sorted(upcoming, key=lambda x: x[0])[:NEXT_UP]]
-    return {"days": day_list, "next": nxt}
+    ahead = [item for _, item in sorted(upcoming, key=lambda x: x[0])]
+    # The wall leads with the next timed event; all-day events have no moment to count down to.
+    hero = next((item for item in ahead if not item["all_day"]), None)
+    today_rest = sorted((item for item in ahead if item["is_today"] and item is not hero),
+                        key=lambda item: item["all_day"])  # timed first (stable, so still in time order)
+    return {"days": day_list, "next": ahead[:NEXT_UP], "hero": hero, "today_rest": today_rest}

@@ -2,7 +2,7 @@
 import { loadToday, loadWeek, onChange, request, startPolling, state, status } from "./api.js";
 import { initTalkWall, openTalk, talkOpen } from "./talk-wall.js";
 import { initSlideshow } from "./slideshow.js";
-import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, toast } from "./ui.js";
+import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, splitTime, toast, whoText } from "./ui.js";
 
 let stage, dash, nightEl;
 let awakeUntil = 0;
@@ -14,61 +14,100 @@ function fitStage() {
   document.documentElement.style.setProperty("--scale", String(s));
 }
 
-const light = (ev) => ev.ink === "#1c1b1f";
+const MAX_ROW_CHIPS = 2;
+
+// A name tag in the event's colors; on a filled card it swaps them so it stands out.
+function whoTag(ev, onFill = false) {
+  const [bg, fg] = onFill ? [ev.ink, ev.color] : [ev.color, ev.ink];
+  return `<span class="who" style="background:${esc(bg)};color:${esc(fg)}">${esc(whoText(ev))}</span>`;
+}
+
+// Readable from across the kitchen: the time and who it's for. The title reads from a few steps closer.
+function heroCard(ev) {
+  if (!ev) return `<div class="hero-empty">Nothing coming up</div>`;
+  const [digits, ampm] = splitTime(ev.time_label);
+  return `<button class="hero" data-uid="${esc(ev.uid)}" ${chipStyle(ev)}>` +
+    (ev.is_today ? "" : `<div class="hero-day">${esc(ev.day_word)}</div>`) +
+    `<div class="hero-row"><span class="hero-time">${esc(digits)}<small>${esc(ampm)}</small></span>${whoTag(ev, true)}</div>` +
+    `<div class="hero-title">${esc(ev.title)}</div></button>`;
+}
+
+function restRow(ev) {
+  const t = ev.all_day ? "all day" : splitTime(ev.time_label)[0];
+  return `<button class="rest-row" data-row data-uid="${esc(ev.uid)}"><span class="bar" style="background:${esc(ev.color)}"></span>` +
+    `<span class="t">${esc(t)}</span><span class="n">${esc(ev.title)}</span>${ev.who?.length ? whoTag(ev) : ""}</button>`;
+}
+
+function restList(week) {
+  const today = week.days[0]?.date ?? "";
+  return week.today_rest.map(restRow).join("") + `<button class="rest-more" data-day="${esc(today)}" hidden></button>`;
+}
 
 function chip(ev) {
-  return `<button class="ev ${light(ev) ? "light" : ""}" data-uid="${esc(ev.uid)}" ${chipStyle(ev)}>` +
-    `<div class="t">${esc(ev.time_label)}</div><div class="n">${esc(ev.title)}</div></button>`;
+  const time = ev.all_day ? "" : `<span class="t">${esc(splitTime(ev.time_label)[0])}</span>`;
+  const who = ev.who?.length ? `<span class="w" style="background:${esc(ev.ink)};color:${esc(ev.color)}">${esc(whoText(ev))}</span>` : "";
+  return `<button class="ev" data-uid="${esc(ev.uid)}" ${chipStyle(ev)}>${time}<span class="n">${esc(ev.title)}</span>${who}</button>`;
 }
 
-function dayColumn(d) {
-  const shown = d.events.slice(0, 3);
-  const extra = d.events.slice(3);
-  const more = d.more ? `<button class="more" data-day="${esc(d.date)}"><span class="cal-dots">${extra.slice(0, 3)
-    .map((e) => `<i style="background:${esc(e.color)}"></i>`).join("")}</span>+${d.more} more</button>` : "";
-  const body = d.events.length ? shown.map(chip).join("") + more : `<div class="free">free</div>`;
-  return `<div class="day ${d.is_today ? "today" : ""}"><div class="day-head"><div class="dow">${esc(d.dow)}</div>` +
-    `<div class="num">${d.day}</div></div>${body}</div>`;
-}
-
-function nextCards(next) {
-  if (!next.length) return `<div class="next-empty">Nothing coming up</div>`;
-  return next.map((ev) => `<button class="next-card ${ev.is_today ? "" : "later"}" data-uid="${esc(ev.uid)}">` +
-    `<div class="title">${esc(ev.title)}</div>` +
-    `<div class="chip" ${chipStyle(ev)}>${esc(ev.relative_label)}</div></button>`).join("");
+function comingRow(d) {
+  const extra = d.events.length - MAX_ROW_CHIPS;
+  const body = !d.events.length ? `<div class="free">free</div>`
+    : d.events.slice(0, MAX_ROW_CHIPS).map(chip).join("") +
+      (extra > 0 ? `<button class="more" data-day="${esc(d.date)}">+${extra}</button>` : "");
+  return `<div class="c-row"><div class="c-day"><span class="dow">${esc(d.dow)}</span><span class="num">${d.day}</span></div>` +
+    `<div class="c-chips">${body}</div></div>`;
 }
 
 const CONFETTI = [[80, 180, "#f2c230", 20], [320, 160, "#fff", -35], [520, 220, "#e0457b", 60], [200, 300, "#fff", -10],
-  [460, 340, "#f2c230", 45]];
+  [660, 300, "#f2c230", 45]];
+
+function todoRow(t) {
+  const when = t.carried ? "earlier" : t.time_label;
+  return `<button class="todo ${t.done ? "done" : ""} ${t.overdue ? "overdue" : ""} ${t.carried ? "carried" : ""}" data-row data-todo="${t.id}">` +
+    `<span class="ring">${icons.check(34, 7)}</span><span class="text">${esc(t.text)}</span>` +
+    (when ? `<span class="when">${esc(when)}</span>` : "") + `</button>`;
+}
 
 function personCard(p) {
+  const head = (count) => `<div class="person-head"><div class="name">${esc(p.name)}</div>${count}` +
+    `<button class="see-all" data-person="${p.id}" hidden></button></div>`;
   if (p.state === "all_done") {
     return `<div class="person all-done">` +
       CONFETTI.map(([l, t, c, r]) => `<i class="confetti" style="left:${l}px;top:${t}px;background:${c};` +
         `transform:rotate(${r}deg)"></i>`).join("") +
-      `<div class="person-head"><div class="avatar">${esc(p.initial)}</div><div class="name">${esc(p.name)}</div>` +
-      `<div class="count">${p.todos.length} of ${p.todos.length}</div></div>` +
-      `<div class="all-done-body"><div class="badge">${icons.check(66, 13, "var(--success)")}</div>` +
+      head(`<div class="count">${p.todos.length} of ${p.todos.length}</div>`) +
+      `<div class="all-done-body"><div class="badge">${icons.check(66, 13, "var(--ink)")}</div>` +
       `<div class="word">All done!</div></div></div>`;
   }
-  const count = p.overdue ? `<div class="count overdue">${p.overdue} overdue · ${p.left} left</div>`
-    : p.state === "open" ? `<div class="count">${p.left} left</div>` : "";
-  const body = p.state === "empty"
-    ? `<div class="person-empty"><div class="big">Nothing today</div>` +
-      `<div class="hint">say <span class="q">“add a todo for ${esc(p.name)}”</span><br>or use your phone</div></div>`
-    : p.todos.map((t) => `<button class="todo ${t.done ? "done" : ""} ${t.overdue ? "overdue" : ""}" data-todo="${t.id}">` +
-        `<span class="ring">${icons.check(28, 6)}</span><span class="text">${esc(t.text)}</span>` +
-        (t.time_label ? `<span class="when">${esc(t.time_label)}</span>` : "") + `</button>`).join("");
-  return `<div class="person"><div class="person-head"><div class="avatar">${esc(p.initial)}</div>` +
-    `<div class="name">${esc(p.name)}</div>${count}</div>${body}</div>`;
+  if (p.state === "empty") {
+    return `<div class="person">${head("")}<div class="person-empty"><div class="big">Nothing today</div>` +
+      `<div class="hint">say <span class="q">“add a todo for ${esc(p.name)}”</span><br>or use your phone</div></div></div>`;
+  }
+  return `<div class="person">${head(`<div class="count">${p.left} left</div>`)}<div class="list">${p.todos.map(todoRow).join("")}</div></div>`;
 }
 
+// Hides rows from the end until the list fits, and says how many are hidden. Nothing is ever silently cut off.
+function fit(list, more, label) {
+  if (!list || !more) return;
+  const rows = [...list.querySelectorAll("[data-row]")];
+  rows.forEach((r) => { r.hidden = false; });
+  more.hidden = true;
+  let hidden = 0;
+  while (list.scrollHeight > list.clientHeight + 1 && hidden < rows.length) {
+    hidden += 1;
+    rows[rows.length - hidden].hidden = true;
+    more.hidden = false;
+    more.textContent = label(hidden);
+  }
+}
+
+const fitPerson = (el) => fit(el.querySelector(".list"), el.querySelector(".see-all"), (n) => `+${n} more`);
+
 function skeleton() {
-  const days = Array.from({ length: 7 }, (_, i) => `<div class="day ${i === 0 ? "today" : ""}"><div class="day-head">` +
-    `<div class="dow">&nbsp;</div><div class="num">&nbsp;</div></div><div class="skel" style="height:130px"></div></div>`);
   return {
-    next: [1, 2, 3].map(() => `<div class="skel" style="height:150px"></div>`).join(""),
-    week: days.join(""),
+    hero: `<div class="skel" style="height:460px;border-radius:56px"></div>`,
+    rest: [1, 2].map(() => `<div class="skel" style="height:104px"></div>`).join(""),
+    coming: Array.from({ length: 6 }, () => `<div class="c-row"><div class="c-day"></div><div class="skel"></div></div>`).join(""),
     people: [1, 2, 3].map(() => `<div class="skel" style="border-radius:48px"></div>`).join(""),
   };
 }
@@ -81,20 +120,21 @@ const personEls = new Map();  // person id -> { el, html }
 
 function buildShell() {
   dash.innerHTML =
-    `<div class="rail"><div><div class="clock" id="clock"></div><div class="date" id="date"></div></div>` +
-    `<div class="next"><div class="label">NEXT UP</div><div id="next-list" class="next-list"></div></div>` +
-    `<button class="talk" id="talk" data-talk></button>` +
-    `<div class="status" id="status"></div></div>` +
-    `<div class="right"><div class="week" id="week"></div><div class="people" id="people"></div></div>`;
-  slots = { next: dash.querySelector("#next-list"), talk: dash.querySelector("#talk"), week: dash.querySelector("#week"),
-    people: dash.querySelector("#people") };
+    `<div class="today-panel"><div class="top-row"><div class="clock" id="clock"></div>` +
+    `<div class="clock-side"><div class="date" id="date"></div><div class="status" id="status"></div></div></div>` +
+    `<div id="hero"></div><div class="rest" id="rest"></div></div>` +
+    `<div class="coming" id="coming"></div>` +
+    `<div class="todo-band"><div class="people" id="people"></div><button class="talk" id="talk" data-talk></button></div>`;
+  slots = { hero: dash.querySelector("#hero"), rest: dash.querySelector("#rest"), coming: dash.querySelector("#coming"),
+    talk: dash.querySelector("#talk"), people: dash.querySelector("#people") };
   personEls.clear();
 }
 
 function setHtml(el, html) {
-  if (el._html === html) return;
+  if (el._html === html) return false;
   el._html = html;
   el.innerHTML = html;
+  return true;
 }
 
 function renderPeople(loading, people, skHtml) {
@@ -115,6 +155,7 @@ function renderPeople(loading, people, skHtml) {
       tpl.innerHTML = html;
       const el = tpl.content.firstElementChild;
       if (rec) rec.el.replaceWith(el); else box.append(el);
+      fitPerson(el);
       rec = { el, html };
       personEls.set(p.id, rec);
     }
@@ -129,8 +170,9 @@ function renderPeople(loading, people, skHtml) {
 function updateStatus() {
   const st = status();
   const s = document.getElementById("status");
+  // Quiet when all is well; only a problem earns space on the wall.
   s.className = `status ${st.tone === "amber" ? "amber" : ""}`;
-  s.innerHTML = `<span class="dot"></span>${esc(st.text)}`;
+  s.innerHTML = st.tone === "amber" ? `<span class="dot"></span>${esc(st.text)}` : "";
 }
 
 function render() {
@@ -138,10 +180,13 @@ function render() {
   const sk = loading ? skeleton() : null;
   dash.className = `dash ${loading ? "loading" : ""} ${(sheetEl && !sheetEl.hidden) || talkOpen() ? "dimmed" : ""}`;
   if (!slots) { buildShell(); tickClock(); }
-  setHtml(slots.next, loading ? sk.next : nextCards(state.week.next));
+  setHtml(slots.hero, loading ? sk.hero : heroCard(state.week.hero));
+  if (setHtml(slots.rest, loading ? sk.rest : restList(state.week)) && !loading) {
+    fit(slots.rest, slots.rest.querySelector(".rest-more"), (n) => `+${n} more today`);
+  }
   slots.talk.className = `talk ${loading ? "skel" : ""}`;
-  setHtml(slots.talk, loading ? "" : `<span class="mic">${icons.mic(50)}</span>Talk to the house`);
-  setHtml(slots.week, loading ? sk.week : state.week.days.map(dayColumn).join(""));
+  setHtml(slots.talk, loading ? "" : `<span class="mic">${icons.mic(84)}</span>Talk to the house`);
+  setHtml(slots.coming, loading ? sk.coming : state.week.days.slice(1).map(comingRow).join(""));
   renderPeople(loading, loading ? [] : state.today.people.slice(0, 3), loading ? sk.people : "");
   updateStatus();
 }
@@ -198,7 +243,7 @@ export function closeSheet() {
 }
 
 function eventSheet(ev, mode = "view", error = "") {
-  const who = (state.today?.people ?? []).filter((p) => p.name === ev.calendar);
+  const who = ev.who ?? [];
   const band = `<div class="band" style="background:${esc(ev.color)};color:${esc(ev.ink)};${mode === "view" ? "" : "opacity:.5"}">` +
     `<div><div class="cal">${esc(ev.calendar.toUpperCase())}</div><div class="title">${esc(ev.title)}</div></div>` +
     (mode === "view" ? `<button class="close" data-close>${icons.x(52, 8, ev.ink)}</button>` : "") + `</div>`;
@@ -213,8 +258,7 @@ function eventSheet(ev, mode = "view", error = "") {
   }
   const facts = `<div class="k">WHEN</div><div>${esc(ev.when_label)}</div>` +
     (ev.location ? `<div class="k">WHERE</div><div>${esc(ev.location)}</div>` : "") +
-    (who.length ? `<div class="k">WHO</div><div>${who.map((p) => `<span class="who-pill"><span class="avatar">` +
-      `${esc(p.initial)}</span>${esc(p.name)}</span>`).join(" ")}</div>` : "");
+    (who.length ? `<div class="k">WHO</div><div>${who.map((n) => `<span class="who-pill">${esc(n)}</span>`).join(" ")}</div>` : "");
   const actions = ev.can_delete
     ? `<button class="btn soft flex" data-voice="${esc(ev.uid)}">${icons.mic(40, "currentColor")}Change by voice</button>` +
       `<button class="btn outline w460" data-delete="${esc(ev.uid)}">Delete</button>`
@@ -237,6 +281,14 @@ export function openDay(dateIso) {
     `<div class="rows">${d.events.map((ev) => `<button class="day-row" data-uid="${esc(ev.uid)}">` +
       `<span class="t">${esc(ev.time_label.toUpperCase())}</span><span class="pill" ${chipStyle(ev)}>${esc(ev.title)}</span>` +
       `</button>`).join("")}</div></div>`);
+}
+
+function openPerson(id) {
+  const p = state.today?.people.find((x) => x.id === id);
+  if (!p) return;
+  showSheet(`<div class="sheet day-sheet"><div class="head"><div><div class="dow">TODAY</div><div class="big">${esc(p.name)}</div></div>` +
+    `<button class="close" data-close>${icons.x(52, 8, "#1c1b1f")}</button></div>` +
+    `<div class="rows person-rows">${p.todos.map(todoRow).join("")}</div></div>`);
 }
 
 async function removeEvent(uid) {
@@ -298,7 +350,7 @@ export function startKitchen(root) {
     updateNight(new Date());
   });
   stage.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-talk],[data-voice],[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove]");
+    const t = e.target.closest("[data-talk],[data-voice],[data-todo],[data-uid],[data-day],[data-close],[data-delete],[data-keep],[data-remove],[data-person]");
     if (!t) return;
     const d = t.dataset;
     if (d.talk !== undefined) return openTalk({ night: isNight(new Date()) });
@@ -315,6 +367,7 @@ export function startKitchen(root) {
     else if (d.todo) toggleTodo(t);
     else if (d.uid) openEvent(d.uid);
     else if (d.day) openDay(d.day);
+    else if (d.person) openPerson(Number(d.person));
   });
   onChange(render);
   render();

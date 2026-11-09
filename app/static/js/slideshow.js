@@ -1,7 +1,7 @@
 // Idle photo slideshow on the kitchen wall (designs 7a and 7c). Starts after 5 idle minutes in the daytime;
 // any tap wakes the dashboard and is never passed on to it.
 import { request, state } from "./api.js";
-import { chipStyle, clockText, dateText, esc } from "./ui.js";
+import { clockText, dateText, esc, splitTime, whoText } from "./ui.js";
 
 const SHOW_MS = 20_000;
 const FADE_MS = 800;
@@ -150,9 +150,15 @@ function tick() {
   const now = new Date();
   el.querySelector(".s-clock").textContent = clockText(now);
   el.querySelector(".s-date").textContent = dateText(now);
-  const ev = state.week?.next?.[0];
-  const html = ev ? `<div class="lbl">NEXT UP</div><div class="pill"><span class="chip" ${chipStyle(ev)}>` +
-    `${esc(ev.relative_label)}</span><span class="title">${esc(ev.title)}</span></div>` : "";
+  const ev = state.week?.hero;
+  const then = (state.week?.today_rest ?? []).slice(0, 2).map((e) => `<div class="s-then">` +
+    `<span class="t">${esc(e.all_day ? "all day" : splitTime(e.time_label)[0])}</span><span class="n">${esc(e.title)}</span></div>`).join("");
+  const [digits, ampm] = ev ? splitTime(ev.time_label) : ["", ""];
+  const html = ev ? `<div class="s-card" style="border-color:${esc(ev.color)}">` +
+    (ev.is_today ? "" : `<div class="s-day">${esc(ev.day_word)}</div>`) +
+    `<div class="s-row"><span class="s-time">${esc(digits)}<small>${esc(ampm)}</small></span>` +
+    `<span class="who" style="background:${esc(ev.color)};color:${esc(ev.ink)}">${esc(whoText(ev))}</span></div>` +
+    `<div class="s-title">${esc(ev.title)}</div>${then}</div>` : "";
   const box = el.querySelector(".s-next");
   if (box._html !== html) { box._html = html; box.innerHTML = html; }
 }

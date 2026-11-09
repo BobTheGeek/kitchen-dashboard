@@ -184,3 +184,34 @@ def test_service_find_uses_cache_then_source(store, freeze):
     assert svc.find("u1")["title"] == "a"
     src.found = ev("Family", "far", "2026-12-01T10:00:00-06:00", uid="u9")
     assert svc.find("u9")["title"] == "far"
+
+
+def test_hero_is_next_timed_event_and_today_rest_lists_the_others(freeze):
+    now = freeze("2026-10-26T15:00")
+    w = week([ev("Family", "Pizza night", "2026-10-26", all_day=True),
+              ev("Family", "Earlier", "2026-10-26T09:00:00-05:00"),
+              ev("Family", "Soccer", "2026-10-26T17:30:00-05:00"),
+              ev("Family", "Dinner", "2026-10-26T19:00:00-05:00"),
+              ev("Family", "Tomorrow thing", "2026-10-27T09:00:00-05:00")], now)
+    assert w["hero"]["title"] == "Soccer"
+    assert [e["title"] for e in w["today_rest"]] == ["Dinner", "Pizza night"]
+
+
+def test_hero_rolls_to_a_later_day_when_today_is_finished(freeze):
+    now = freeze("2026-10-26T21:00")
+    w = week([ev("Family", "Dinner", "2026-10-26T19:00:00-05:00"),
+              ev("Family", "Standup", "2026-10-27T09:00:00-05:00")], now)
+    assert w["hero"]["title"] == "Standup" and w["hero"]["day_word"] == "Tomorrow"
+    assert w["today_rest"] == []
+
+
+def test_hero_is_none_with_nothing_timed_ahead(freeze):
+    now = freeze("2026-10-26T21:00")
+    assert week([], now)["hero"] is None
+
+
+def test_events_carry_who(freeze):
+    now = freeze("2026-10-26T09:00")
+    w = cal.build_week([ev("Family", "Dentist · Ben", "2026-10-26T16:00:00-05:00")], now, COLORS,
+                       people=["Bob", "Belen", "Ben"])
+    assert w["hero"]["who"] == ["Ben"]

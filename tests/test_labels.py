@@ -66,3 +66,13 @@ def test_chip_detail():
     thu = date(2026, 10, 29)
     assert labels.chip_detail(thu, at(16, 0, thu)) == "THU 29 · 4:00 PM"
     assert labels.chip_detail(thu, None) == "THU 29"
+
+
+def test_who_for_matches_calendar_and_title():
+    fam = ["Bob", "Belen", "Ben"]
+    assert labels.who_for("Benny Time", "Swim", fam) == ["Ben"]
+    assert labels.who_for("Bob work", "Standup", fam) == ["Bob"]
+    assert labels.who_for("Family", "Dentist · Ben", fam) == ["Ben"]
+    assert labels.who_for("Family", "Belen and Bob's date", fam) == ["Bob", "Belen"]
+    assert labels.who_for("Family", "Pizza night", fam) == []
+    assert labels.who_for("Family", "Bench repair", fam) == []  # a title needs the whole name
