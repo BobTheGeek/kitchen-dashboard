@@ -207,7 +207,7 @@ def create_app(db_path: str | None = None, source=None, version: str | None = No
     def get_week(con: Con):
         res = cal.events(days=7)
         colors = settings.ensure_colors(con, [e["calendar"] for e in res["events"]])
-        body = build_week(res["events"], clock.now(), colors)
+        body = build_week(res["events"], clock.now(), colors, people=[p["name"] for p in settings.people(con)])
         body["fetched_at"] = res["fetched_at"].isoformat(timespec="seconds") if res["fetched_at"] else None
         body["calendar_ok"] = res["ok"]
         body["calendars"] = settings.calendars(con)

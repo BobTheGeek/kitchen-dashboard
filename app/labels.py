@@ -1,4 +1,6 @@
 """Text the page shows, built on the server so pytest can check it. Pure functions only."""
+import re
+from collections.abc import Iterable
 from datetime import date, datetime, time
 
 PRESETS = ["#f2c230", "#e0702a", "#d2382f", "#e0457b", "#6b45d9", "#2b5fd9", "#14a08a", "#2fb36a"]
@@ -53,13 +55,36 @@ def chip_detail(d: date, at: datetime | time | None) -> str:
     return head if at is None else f"{head} · {clock_time(at)}"
 
 
+def _words(text: str) -> list[str]:
+    return re.findall(r"[^\W\d_]+", text.lower())
+
+
+def who_for(calendar: str, title: str, people: Iterable[str]) -> list[str]:
+    """Who an event is for: a person's name starts a word of the calendar ("Benny Time") or is a word of the title."""
+    cal_words, title_words = _words(calendar), set(_words(title))
+    out = []
+    for name in people:
+        first = (_words(name) or [""])[0]
+        if first and (first in title_words or any(w.startswith(first) for w in cal_words)):
+            out.append(name)
+    return out
+
+
 def _channel(c: int) -> float:
     v = c / 255
     return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
 
 
-def ink_for(color: str) -> str:
-    """Design rule 1e: dark text on light fills, white text on dark fills."""
+def _luminance(color: str) -> float:
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
-    lum = 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
-    return DARK_INK if lum > 0.55 else LIGHT_INK
+    return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+
+def contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def ink_for(color: str) -> str:
+    """Whichever text color reads better on this fill. Works for any color picked in settings."""
+    return DARK_INK if contrast(color, DARK_INK) >= contrast(color, "#ffffff") else LIGHT_INK

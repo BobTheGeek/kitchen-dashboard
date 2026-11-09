@@ -78,10 +78,10 @@ function eventSheet() {
   const s = view.sheet;
   const ev = findEvent(s.uid);
   if (!ev) return "";
-  const who = (state.today?.people ?? []).filter((p) => p.name === ev.calendar);
+  const who = ev.who ?? [];
   const rows = `<div class="p-row"><span class="k">WHEN</span><span>${esc(ev.when_label)}</span></div>` +
     (ev.location ? `<div class="p-row"><span class="k">WHERE</span><span>${esc(ev.location)}</span></div>` : "") +
-    (who.length ? `<div class="p-row"><span class="k">WHO</span><span>${who.map((p) => esc(p.name)).join(", ")}</span></div>` : "") +
+    (who.length ? `<div class="p-row"><span class="k">WHO</span><span>${who.map(esc).join(", ")}</span></div>` : "") +
     `<div class="p-row"><span class="k">CAL</span><span><i class="p-dotc" style="background:${esc(ev.color)}"></i>` +
     `${esc(ev.calendar)}</span></div>`;
   let actions;
@@ -189,9 +189,7 @@ function renderSettings() {
     `<button class="p-link" style="color:var(--accent)" data-go="home">Done</button></div>` +
     `<div class="p-sec"><div class="p-label">CALENDARS</div><div class="p-card">${calRows || `<div class="p-empty">No calendars yet</div>`}</div></div>` +
     `<div class="p-sec"><div class="p-label">FAMILY</div><div class="p-card">${famRows}</div>` +
-    `<div class="p-err" id="fam-err">${esc(s.error)}</div></div>` +
-    `<div class="p-sec p-later"><div class="p-label">LATER</div><div class="p-card">` +
-    `<div class="p-fam">Night mode · 10 PM – 6 AM</div><div class="p-fam">Photo slideshow after 5 min</div></div></div></div>`;
+    `<div class="p-err" id="fam-err">${esc(s.error)}</div></div></div>`;
 }
 
 async function setColor(name, color) {
