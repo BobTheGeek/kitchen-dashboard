@@ -58,8 +58,16 @@ def _channel(c: int) -> float:
     return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
 
 
-def ink_for(color: str) -> str:
-    """Design rule 1e: dark text on light fills, white text on dark fills."""
+def _luminance(color: str) -> float:
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
-    lum = 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
-    return DARK_INK if lum > 0.55 else LIGHT_INK
+    return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+
+def contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def ink_for(color: str) -> str:
+    """Whichever text color reads better on this fill. Works for any color picked in settings."""
+    return DARK_INK if contrast(color, DARK_INK) >= contrast(color, "#ffffff") else LIGHT_INK

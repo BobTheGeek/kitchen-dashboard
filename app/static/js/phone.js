@@ -189,9 +189,7 @@ function renderSettings() {
     `<button class="p-link" style="color:var(--accent)" data-go="home">Done</button></div>` +
     `<div class="p-sec"><div class="p-label">CALENDARS</div><div class="p-card">${calRows || `<div class="p-empty">No calendars yet</div>`}</div></div>` +
     `<div class="p-sec"><div class="p-label">FAMILY</div><div class="p-card">${famRows}</div>` +
-    `<div class="p-err" id="fam-err">${esc(s.error)}</div></div>` +
-    `<div class="p-sec p-later"><div class="p-label">LATER</div><div class="p-card">` +
-    `<div class="p-fam">Night mode · 10 PM – 6 AM</div><div class="p-fam">Photo slideshow after 5 min</div></div></div></div>`;
+    `<div class="p-err" id="fam-err">${esc(s.error)}</div></div></div>`;
 }
 
 async function setColor(name, color) {

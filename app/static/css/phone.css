@@ -22,7 +22,7 @@ body.is-phone { background: var(--bg); }
 .p-week-row .chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 0; }
 .p-wchip { position: relative; border-radius: 999px; padding: 6px 12px; font: 600 13px var(--sans); min-height: 32px; }
 .p-wchip::after { content: ""; position: absolute; inset: -8px -3px; } /* 48px tap target, same look */
-.p-free { font: 13px var(--mono); color: var(--ring); }
+.p-free { font: 13px var(--mono); color: var(--muted); }
 .p-switch { display: flex; gap: 8px; }
 .p-person { flex: 1; height: 52px; border-radius: 999px; background: var(--surface); display: flex; align-items: center;
   justify-content: center; gap: 8px; font: 600 15px var(--sans); }
@@ -141,8 +141,6 @@ body.is-phone { background: var(--bg); }
 .p-fam .edit { font: 600 14px var(--sans); color: var(--muted); min-height: 48px; min-width: 48px; padding: 0 4px; }
 .p-fam input { flex: 1; font: 17px var(--sans); border: 2px solid var(--accent); border-radius: 12px; padding: 10px;
   min-width: 0; }
-.p-later { opacity: .5; }
-.p-later .p-fam { min-height: 56px; font: 17px var(--sans); }
 
 /* Phone toast */
 .is-phone .toast { bottom: 110px; padding: 14px 20px; gap: 10px; font: 500 15px var(--sans); }
@@ -166,7 +164,7 @@ body.is-phone { background: var(--bg); }
 .p-tcard.undone { opacity: .5; }
 .p-tcard .bar { width: 8px; align-self: stretch; border-radius: 4px; }
 .p-tcard .b { flex: 1; } .p-tcard .t { font: 600 16px var(--sans); } .p-tcard .m { font: 12px var(--mono); color: var(--muted); }
-.p-tverb { background: var(--success); color: #fff; border-radius: 999px; padding: 4px 10px; font: 600 11px var(--mono); }
+.p-tverb { background: var(--success); color: var(--ink); border-radius: 999px; padding: 4px 10px; font: 600 11px var(--mono); }
 .p-chipbtn { min-height: 48px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--divider-2); font: 600 14px var(--sans); }
 .p-tbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px 30px; display: flex; gap: 10px; max-width: 900px;
   margin: 0 auto; background: linear-gradient(rgba(250,249,247,0), var(--bg) 35%); }

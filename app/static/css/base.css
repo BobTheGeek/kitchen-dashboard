@@ -1,8 +1,8 @@
 /* Tokens and shared pieces. Values come from docs/design/README.md. System fonts only. */
 :root {
   --bg: #faf9f7; --surface: #fff; --surface-2: #f4f2f7; --divider: #f0eef4; --divider-2: #e6e3ee;
-  --dashed: #d9d5e3; --ink: #1c1b1f; --muted: #6b6875; --faint: #9995a3; --ring: #c9c4d6;
-  --accent: #6b45d9; --accent-soft: #efe9fb; --success: #2fb36a; --warning: #e9a23b; --warning-text: #b5742a;
+  --dashed: #d9d5e3; --ink: #1c1b1f; --muted: #6b6875; --faint: #736f7d; --ring: #8d879c;
+  --accent: #6b45d9; --accent-soft: #efe9fb; --success: #2fb36a; --warning: #e9a23b; --warning-text: #8a5618;
   --danger: #d2382f; --danger-tint: #fdf1f0;
   --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;

@@ -46,8 +46,15 @@ def test_todo_time_label():
 def test_ink_for_light_and_dark():
     assert labels.ink_for("#f2c230") == labels.DARK_INK   # yellow
     assert labels.ink_for("#2b5fd9") == labels.LIGHT_INK  # blue
-    assert labels.ink_for("#e0457b") == labels.LIGHT_INK  # pink
+    assert labels.ink_for("#e0457b") == labels.DARK_INK   # pink
+    assert labels.ink_for("#2fb36a") == labels.DARK_INK   # green: white was only 2.7:1
     assert labels.ink_for("#FFFFFF") == labels.DARK_INK
+
+
+def test_every_preset_text_is_readable():
+    for color in labels.PRESETS:
+        ink = "#ffffff" if labels.ink_for(color) == labels.LIGHT_INK else labels.DARK_INK
+        assert labels.contrast(color, ink) >= 4.3, color
 
 
 def test_presets():

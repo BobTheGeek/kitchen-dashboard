@@ -7,6 +7,7 @@ import { chicagoParts, chipStyle, clockText, dateText, errorText, esc, icons, to
 let stage, dash, nightEl;
 let awakeUntil = 0;
 const WAKE_MS = 2 * 60_000;
+const SHEET_CLOSE_MS = 60_000;  // a sheet left open must not dim the wall for the rest of the day
 
 function fitStage() {
   const s = Math.min(window.innerWidth / 3000, window.innerHeight / 2000);
@@ -23,7 +24,7 @@ function chip(ev) {
 function dayColumn(d) {
   const shown = d.events.slice(0, 3);
   const extra = d.events.slice(3);
-  const more = d.more ? `<button class="more" data-day="${esc(d.date)}"><span class="dots">${extra.slice(0, 3)
+  const more = d.more ? `<button class="more" data-day="${esc(d.date)}"><span class="cal-dots">${extra.slice(0, 3)
     .map((e) => `<i style="background:${esc(e.color)}"></i>`).join("")}</span>+${d.more} more</button>` : "";
   const body = d.events.length ? shown.map(chip).join("") + more : `<div class="free">free</div>`;
   return `<div class="day ${d.is_today ? "today" : ""}"><div class="day-head"><div class="dow">${esc(d.dow)}</div>` +
@@ -167,7 +168,12 @@ async function toggleTodo(btn) {
   }
 }
 
-let sheetEl;
+let sheetEl, sheetTimer;
+
+function armSheetClose() {
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(closeSheet, SHEET_CLOSE_MS);
+}
 
 function findEvent(uid) {
   for (const d of state.week?.days ?? []) {
@@ -181,9 +187,11 @@ function showSheet(html) {
   dash.classList.add("dimmed");
   sheetEl.innerHTML = `<div class="scrim" data-close></div>${html}`;
   sheetEl.hidden = false;
+  armSheetClose();
 }
 
 export function closeSheet() {
+  clearTimeout(sheetTimer);
   sheetEl.hidden = true;
   sheetEl.innerHTML = "";
   dash.classList.remove("dimmed");
@@ -283,6 +291,7 @@ export function startKitchen(root) {
   initSlideshow(stage, { blocked: () => !sheetEl.hidden || talkOpen() || nightEl.classList.contains("on") });
   fitStage();
   window.addEventListener("resize", fitStage);
+  stage.addEventListener("pointerdown", () => { if (!sheetEl.hidden) armSheetClose(); }, true);
   nightEl.addEventListener("click", (e) => {
     e.stopPropagation();  // the waking tap never reaches the dashboard
     awakeUntil = Date.now() + WAKE_MS;

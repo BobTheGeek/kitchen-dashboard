@@ -46,12 +46,12 @@ body.is-kitchen { overflow: hidden; }
   overflow-wrap: break-word; hyphens: auto; }
 .ev .t { font: 600 38px var(--mono); opacity: .9; }
 .ev.light .t { opacity: .8; }
-.more { height: 100px; border-radius: 999px; border: 5px solid var(--ink); display: flex; align-items: center;
+.more { height: 120px; border-radius: 999px; border: 5px solid var(--ink); display: flex; align-items: center;
   justify-content: center; gap: 16px; font: 600 34px var(--sans); }
-.more .dots { display: flex; gap: 6px; }
-.more .dots i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.more .cal-dots { display: flex; gap: 6px; }
+.more .cal-dots i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
 .free { flex: 1; border-radius: 28px; border: 4px dashed var(--divider-2); display: flex; align-items: center;
-  justify-content: center; font: 30px var(--mono); color: var(--ring); }
+  justify-content: center; font: 30px var(--mono); color: var(--muted); }
 .ev.new { outline: 8px solid var(--success); outline-offset: 6px; }
 
 /* TODO cards */
@@ -65,7 +65,7 @@ body.is-kitchen { overflow: hidden; }
 .person-head .name { font: 600 52px/1 var(--sans); flex: 1; min-width: 0; }
 .person-head .count { font: 30px var(--mono); color: var(--muted); white-space: nowrap; }
 .person-head .count.overdue { color: var(--danger); flex-basis: 100%; }
-.todo { display: flex; align-items: center; gap: 20px; min-height: 100px; text-align: left; width: 100%; }
+.todo { display: flex; align-items: center; gap: 20px; min-height: 120px; text-align: left; width: 100%; }
 .ring { width: 60px; height: 60px; border-radius: 50%; border: 5px solid var(--ring); flex: none; display: flex;
   align-items: center; justify-content: center; transition: background .15s, border-color .15s; }
 .ring .i-check { transform: rotate(-45deg) translate(3px, -4px) scale(0); transition: transform .15s; }
@@ -74,7 +74,7 @@ body.is-kitchen { overflow: hidden; }
 .todo.done .ring { background: var(--accent); border-color: var(--accent); }
 .todo.done .ring .i-check { transform: rotate(-45deg) translate(3px, -4px) scale(1); }
 .todo.done .text { color: var(--faint); text-decoration: line-through; }
-.todo.done .when { color: var(--ring); }
+.todo.done .when { color: var(--faint); }
 .todo.overdue { background: var(--danger-tint); border-radius: 24px; padding: 0 20px; margin: 0 -20px; width: auto; }
 .todo.overdue .ring { border-color: var(--danger); }
 .todo.overdue .when { color: var(--danger); font-weight: 600; }
@@ -83,9 +83,9 @@ body.is-kitchen { overflow: hidden; }
 .person-empty .big { font: 600 44px/1.1 var(--sans); color: var(--faint); }
 .person-empty .hint { font: 38px/1.4 var(--mono); color: var(--faint); }
 .person-empty .hint .q { white-space: nowrap; }
-.person.all-done { background: var(--success); color: #fff; animation: fade-in .3s; }
-.person.all-done .avatar { background: rgba(255,255,255,.3); color: #fff; }
-.person.all-done .count { color: #fff; opacity: .9; }
+.person.all-done { background: var(--success); color: var(--ink); animation: fade-in .3s; }
+.person.all-done .avatar { background: rgba(255,255,255,.3); color: var(--ink); }
+.person.all-done .count { color: var(--ink); }
 .all-done-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
 .all-done-body .badge { width: 150px; height: 150px; border-radius: 50%; background: #fff; display: flex;
   align-items: center; justify-content: center; }
@@ -201,9 +201,9 @@ body.is-kitchen { overflow: hidden; }
 .tchip b { font: 600 32px var(--mono); opacity: .85; }
 .tchip.ttodo { background: var(--surface); color: var(--ink); }
 .tmeta { font: 36px var(--mono); color: var(--muted); flex: 1; }
-.tverb { background: var(--success); color: #fff; border-radius: 999px; padding: 10px 24px; font: 600 32px var(--mono); }
+.tverb { background: var(--success); color: var(--ink); border-radius: 999px; padding: 10px 24px; font: 600 32px var(--mono); }
 .tcard.undone .tverb { background: var(--ring); }
-.tsmall { height: 100px; padding: 0 36px; border-radius: 999px; border: 5px solid var(--divider-2); font: 600 40px var(--sans);
+.tsmall { height: 120px; padding: 0 36px; border-radius: 999px; border: 5px solid var(--divider-2); font: 600 40px var(--sans);
   color: var(--muted); }
 .tb { display: flex; gap: 32px; margin-top: auto; }
 .tbtn { height: 200px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 28px;
@@ -221,7 +221,7 @@ body.is-kitchen { overflow: hidden; }
 @keyframes blink { 50% { opacity: 0; } }
 .pills { display: flex; gap: 24px; }
 .pill { height: 120px; padding: 0 44px; border-radius: 999px; background: var(--surface-2); font: 600 44px var(--sans); }
-.link { font: 600 40px var(--sans); color: var(--accent); letter-spacing: 0; min-height: 100px; }
+.link { font: 600 40px var(--sans); color: var(--accent); letter-spacing: 0; min-height: 120px; }
 .kbd { display: flex; flex-direction: column; gap: 16px; margin-top: auto; }
 .krow { display: flex; gap: 16px; }
 .key { flex: 1; height: 120px; border-radius: 24px; background: var(--surface-2); font: 600 48px var(--sans); }
@@ -242,7 +242,7 @@ body.is-kitchen { overflow: hidden; }
 /* Change by voice on the event sheet, toast undo, new-chip glow on TODO rows */
 .btn.soft { background: var(--accent-soft); color: var(--accent); gap: 24px; }
 .toast-undo { margin-left: 24px; padding: 12px 28px; border: 3px solid rgba(255,255,255,.5); border-radius: 999px;
-  font: 600 36px var(--mono); color: #fff; min-height: 100px; }
+  font: 600 36px var(--mono); color: #fff; min-height: 120px; }
 .todo.new { outline: 8px solid var(--success); outline-offset: 6px; border-radius: 24px; }
 
 /* Idle slideshow (7a) and wake (7c) */
